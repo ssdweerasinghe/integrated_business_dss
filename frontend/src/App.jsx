@@ -38,24 +38,37 @@ function App() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  // Role checks
-  const isAdmin = user?.role === 'Admin';
-  const isOwner = user?.role === 'Owner';
-  const isAccountant = user?.role === 'Accountant';
+  const role = user?.role || '';
 
-  const canViewDashboard = ['Owner', 'Accountant', 'Admin'].includes(user?.role);
-  const canViewTyres = ['Owner', 'Shop Manager', 'Admin'].includes(user?.role);
-  const canViewEV = ['Owner', 'EV Operator', 'Admin'].includes(user?.role);
-  const canViewFleet = ['Owner', 'Fleet Manager', 'Driver', 'Admin'].includes(user?.role);
+  // Access definitions
+  const isAdmin = role === 'Admin';
+  const isOwner = role === 'Owner';
+  const isAccountant = role === 'Accountant';
+  const isShopManager = role === 'Shop Manager';
+  const isEVOperator = role === 'EV Operator';
+  const isEVManager = role === 'EV System Manager';
+  const isFleetManager = role === 'Fleet Manager' || role === 'Fleet Operation Manager';
+  const isDriver = role === 'Driver';
+
+  const canViewDashboard = isAdmin || isOwner || isAccountant || isEVManager || isFleetManager;
+  const canViewTyres = isAdmin || isOwner || isShopManager;
+  const canViewEV = isAdmin || isOwner || isEVManager || isEVOperator;
+  const canViewFleet = isAdmin || isOwner || isFleetManager || isDriver;
 
   // Set default initial tab based on role
   useEffect(() => {
     if (user) {
-      if (user.role === 'Shop Manager') setActiveTab('tyres');
-      else if (user.role === 'EV Operator') setActiveTab('ev');
-      else if (user.role === 'Driver') setActiveTab('fleet');
-      else if (user.role === 'Admin') setActiveTab('admin');
-      else setActiveTab('dashboard');
+      if (isShopManager) {
+        setActiveTab('tyres');
+      } else if (isEVOperator) {
+        setActiveTab('ev');
+      } else if (isDriver) {
+        setActiveTab('fleet');
+      } else if (isAdmin) {
+        setActiveTab('admin');
+      } else {
+        setActiveTab('dashboard');
+      }
     }
   }, [user]);
 
@@ -126,18 +139,18 @@ function App() {
       {
         label: 'Revenue (LKR)',
         data: [
-          parseFloat(breakdown.tyres.revenue),
-          parseFloat(breakdown.ev_charging.revenue),
-          parseFloat(breakdown.fleet.revenue)
+          parseFloat(breakdown.tyres?.revenue || 0),
+          parseFloat(breakdown.ev_charging?.revenue || 0),
+          parseFloat(breakdown.fleet?.revenue || 0)
         ],
         backgroundColor: 'rgba(54, 162, 235, 0.75)'
       },
       {
         label: 'Profit (LKR)',
         data: [
-          parseFloat(breakdown.tyres.profit),
-          parseFloat(breakdown.ev_charging.estimated_profit),
-          parseFloat(breakdown.fleet.net_profit)
+          parseFloat(breakdown.tyres?.profit || 0),
+          parseFloat(breakdown.ev_charging?.estimated_profit || 0),
+          parseFloat(breakdown.fleet?.net_profit || 0)
         ],
         backgroundColor: 'rgba(75, 192, 192, 0.75)'
       }
@@ -149,9 +162,9 @@ function App() {
     datasets: [
       {
         data: [
-          parseFloat(breakdown.tyres.revenue),
-          parseFloat(breakdown.ev_charging.revenue),
-          parseFloat(breakdown.fleet.revenue)
+          parseFloat(breakdown.tyres?.revenue || 0),
+          parseFloat(breakdown.ev_charging?.revenue || 0),
+          parseFloat(breakdown.fleet?.revenue || 0)
         ],
         backgroundColor: ['#36A2EB', '#4BC0C0', '#FFCE56']
       }
@@ -160,7 +173,7 @@ function App() {
 
   return (
     <div className="container-fluid py-4 px-4">
-      {/* Header with User Profile, Print Export, and Logout */}
+      {/* Header */}
       <header className="pb-3 mb-4 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
           <h2 className="fw-bold text-dark m-0">Integrated Business Decision Support System</h2>
@@ -182,7 +195,7 @@ function App() {
         </div>
       </header>
 
-      {/* Role-Based Navigation Tabs */}
+      {/* Navigation Tabs */}
       <ul className="nav nav-pills mb-4 gap-2">
         {canViewDashboard && (
           <li className="nav-item">
@@ -236,7 +249,7 @@ function App() {
         )}
       </ul>
 
-      {/* 1. DASHBOARD VIEW */}
+      {/* TAB 1: EXECUTIVE DASHBOARD */}
       {activeTab === 'dashboard' && canViewDashboard && summary && (
         <>
           <div className="row g-3 mb-4">
@@ -244,7 +257,7 @@ function App() {
               <div className="card shadow-sm border-0 border-start border-primary border-4">
                 <div className="card-body">
                   <span className="text-muted text-uppercase fw-semibold small">Total Revenue</span>
-                  <h3 className="fw-bold mt-2">Rs. {Number(summary.total_business_revenue).toLocaleString()}</h3>
+                  <h3 className="fw-bold mt-2">Rs. {Number(summary.total_business_revenue || 0).toLocaleString()}</h3>
                 </div>
               </div>
             </div>
@@ -253,7 +266,7 @@ function App() {
               <div className="card shadow-sm border-0 border-start border-success border-4">
                 <div className="card-body">
                   <span className="text-muted text-uppercase fw-semibold small">Net Business Profit</span>
-                  <h3 className="fw-bold mt-2 text-success">Rs. {Number(summary.total_business_profit).toLocaleString()}</h3>
+                  <h3 className="fw-bold mt-2 text-success">Rs. {Number(summary.total_business_profit || 0).toLocaleString()}</h3>
                 </div>
               </div>
             </div>
@@ -262,7 +275,7 @@ function App() {
               <div className="card shadow-sm border-0 border-start border-info border-4">
                 <div className="card-body">
                   <span className="text-muted text-uppercase fw-semibold small">EV Delivered Energy</span>
-                  <h3 className="fw-bold mt-2">{breakdown.ev_charging.total_kwh || 0} kWh</h3>
+                  <h3 className="fw-bold mt-2">{breakdown?.ev_charging?.total_kwh || 0} kWh</h3>
                 </div>
               </div>
             </div>
@@ -271,7 +284,7 @@ function App() {
               <div className="card shadow-sm border-0 border-start border-warning border-4">
                 <div className="card-body">
                   <span className="text-muted text-uppercase fw-semibold small">Fleet Operational Cost</span>
-                  <h3 className="fw-bold mt-2 text-warning">Rs. {Number(breakdown.fleet.expenses).toLocaleString()}</h3>
+                  <h3 className="fw-bold mt-2 text-warning">Rs. {Number(breakdown?.fleet?.expenses || 0).toLocaleString()}</h3>
                 </div>
               </div>
             </div>
@@ -284,7 +297,7 @@ function App() {
                   🧠 Automated Decision Support Insights
                 </div>
                 <div className="card-body">
-                  {decision_insights.length === 0 ? (
+                  {(!decision_insights || decision_insights.length === 0) ? (
                     <p className="text-muted m-0">No active operational alerts.</p>
                   ) : (
                     <div className="d-flex flex-column gap-2">
@@ -346,22 +359,22 @@ function App() {
         </>
       )}
 
-      {/* 2. TYRES VIEW */}
+      {/* TAB 2: TYRES */}
       {activeTab === 'tyres' && canViewTyres && (
         <TyreModule onDataChanged={fetchAnalytics} />
       )}
 
-      {/* 3. EV VIEW */}
+      {/* TAB 3: EV */}
       {activeTab === 'ev' && canViewEV && (
         <EVModule onDataChanged={fetchAnalytics} />
       )}
 
-      {/* 4. FLEET VIEW */}
+      {/* TAB 4: FLEET */}
       {activeTab === 'fleet' && canViewFleet && (
         <FleetModule onDataChanged={fetchAnalytics} />
       )}
 
-      {/* 5. ADMIN MANAGER VIEW */}
+      {/* TAB 5: ADMIN MANAGER */}
       {activeTab === 'admin' && isAdmin && (
         <AdminManager onDataChanged={fetchAnalytics} />
       )}
