@@ -12,7 +12,33 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 2. POST Add new tyre stock
+// 2. GET complete sales history with cost and gross profit per transaction
+router.get('/sales/history', async (req, res) => {
+  try {
+    const [sales] = await pool.query(`
+      SELECT 
+        s.id,
+        s.customer_name,
+        s.quantity_sold,
+        s.unit_price,
+        s.total_amount,
+        s.sale_date,
+        t.brand,
+        t.pattern,
+        t.size,
+        t.buying_price,
+        ((s.unit_price - t.buying_price) * s.quantity_sold) AS gross_profit
+      FROM tyre_sales s
+      JOIN tyres t ON s.tyre_id = t.id
+      ORDER BY s.sale_date DESC
+    `);
+    res.json({ success: true, data: sales });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 3. POST Add new tyre stock to inventory
 router.post('/', async (req, res) => {
   const { brand, pattern, size, buying_price, selling_price, stock_quantity } = req.body;
   if (!brand || !size || !buying_price || !selling_price || stock_quantity === undefined) {
@@ -30,7 +56,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// 3. POST Record a POS Sale (Transaction-Safe)
+// 4. POST Record a POS Sale (Row-locked ACID Transaction)
 router.post('/sale', async (req, res) => {
   const { tyre_id, quantity_sold, customer_name } = req.body;
   if (!tyre_id || !quantity_sold || quantity_sold <= 0) {
@@ -66,7 +92,7 @@ router.post('/sale', async (req, res) => {
       tyre_id
     ]);
 
-    // Insert sale transaction
+    // Insert sale record
     const [saleResult] = await conn.query(
       'INSERT INTO tyre_sales (tyre_id, quantity_sold, unit_price, total_amount, customer_name) VALUES (?, ?, ?, ?, ?)',
       [tyre_id, quantity_sold, unit_price, total_amount, customer_name || 'Walk-in Customer']
@@ -86,9 +112,9 @@ router.post('/sale', async (req, res) => {
   }
 });
 
-// --- ADMIN MANAGEMENT ROUTES ---
+// --- ADMIN / EDIT MANAGEMENT ROUTES ---
 
-// 4. PUT Update tyre details
+// 5. PUT Update Tyre details
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const { brand, pattern, size, buying_price, selling_price, stock_quantity } = req.body;
@@ -105,7 +131,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// 5. DELETE Tyre and linked sales records
+// 6. DELETE Tyre (and cascade-removes its associated sales records safely)
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   const conn = await pool.getConnection();
@@ -123,7 +149,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// 6. DELETE Sale record (Restores stock quantity)
+// 7. DELETE Sale record (Restores the stock quantity to inventory)
 router.delete('/sales/:saleId', async (req, res) => {
   const { saleId } = req.params;
   const conn = await pool.getConnection();
@@ -135,12 +161,12 @@ router.delete('/sales/:saleId', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Sale record not found' });
     }
     const { tyre_id, quantity_sold } = sales[0];
-    
+
     // Rollback stock
     await conn.query('UPDATE tyres SET stock_quantity = stock_quantity + ? WHERE id = ?', [quantity_sold, tyre_id]);
-    // Delete sale entry
-    await conn.query('DELETE FROM tyre_sales WHERE id = ?', [saleId]);
     
+    // Delete sale
+    await conn.query('DELETE FROM tyre_sales WHERE id = ?', [saleId]);
     await conn.commit();
     res.json({ success: true, message: 'Sale deleted and stock restored successfully' });
   } catch (error) {
@@ -151,7 +177,7 @@ router.delete('/sales/:saleId', async (req, res) => {
   }
 });
 
-// 7. GET all sales for Admin management
+// 8. GET all sales for Admin management view
 router.get('/admin/sales', async (req, res) => {
   try {
     const [sales] = await pool.query(`
