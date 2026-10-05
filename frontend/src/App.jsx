@@ -13,6 +13,7 @@ import {
 import { Bar, Doughnut } from 'react-chartjs-2';
 import TyreModule from './components/TyreModule';
 import EVModule from './components/EVModule';
+import FleetModule from './components/FleetModule';
 
 ChartJS.register(
   CategoryScale,
@@ -150,6 +151,14 @@ function App() {
             ⚡ EV Charging Station
           </button>
         </li>
+        <li className="nav-item">
+          <button
+            className={`btn ${activeTab === 'fleet' ? 'btn-primary' : 'btn-outline-secondary'}`}
+            onClick={() => setActiveTab('fleet')}
+          >
+            🚗 Fleet Operations
+          </button>
+        </li>
       </ul>
 
       {/* Render Active View */}
@@ -267,6 +276,10 @@ function App() {
 
       {activeTab === 'ev' && (
         <EVModule onDataChanged={fetchAnalytics} />
+      )}
+
+      {activeTab === 'fleet' && (
+        <FleetModule onDataChanged={fetchAnalytics} />
       )}
     </div>
   );
