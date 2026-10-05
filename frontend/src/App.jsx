@@ -43,14 +43,14 @@ function App() {
   // Access definitions
   const isAdmin = role === 'Admin';
   const isOwner = role === 'Owner';
-  const isAccountant = role === 'Accountant';
   const isShopManager = role === 'Shop Manager';
   const isEVOperator = role === 'EV Operator';
   const isEVManager = role === 'EV System Manager';
   const isFleetManager = role === 'Fleet Manager' || role === 'Fleet Operation Manager';
   const isDriver = role === 'Driver';
 
-  const canViewDashboard = isAdmin || isOwner || isAccountant || isEVManager || isFleetManager;
+  // Executive Dashboard is STRICTLY restricted to Owner and Admin only
+  const canViewDashboard = isAdmin || isOwner;
   const canViewTyres = isAdmin || isOwner || isShopManager;
   const canViewEV = isAdmin || isOwner || isEVManager || isEVOperator;
   const canViewFleet = isAdmin || isOwner || isFleetManager || isDriver;
@@ -60,12 +60,14 @@ function App() {
     if (user) {
       if (isShopManager) {
         setActiveTab('tyres');
-      } else if (isEVOperator) {
+      } else if (isEVOperator || isEVManager) {
         setActiveTab('ev');
-      } else if (isDriver) {
+      } else if (isDriver || isFleetManager) {
         setActiveTab('fleet');
       } else if (isAdmin) {
         setActiveTab('admin');
+      } else if (isOwner) {
+        setActiveTab('dashboard');
       } else {
         setActiveTab('dashboard');
       }
@@ -88,7 +90,7 @@ function App() {
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && canViewDashboard) {
       fetchAnalytics();
     } else {
       setLoading(false);
@@ -119,7 +121,7 @@ function App() {
     );
   }
 
-  if (error) {
+  if (error && canViewDashboard) {
     return (
       <div className="container mt-5">
         <div className="alert alert-danger" role="alert">
@@ -249,7 +251,7 @@ function App() {
         )}
       </ul>
 
-      {/* TAB 1: EXECUTIVE DASHBOARD */}
+      {/* TAB 1: EXECUTIVE DASHBOARD (Owner & Admin only) */}
       {activeTab === 'dashboard' && canViewDashboard && summary && (
         <>
           <div className="row g-3 mb-4">
