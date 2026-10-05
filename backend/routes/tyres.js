@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 
-// 1. GET all tyres
+// 1. GET all tyres in inventory
 router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM tyres ORDER BY id DESC');
@@ -12,90 +12,157 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 2. POST add a new tyre to inventory
+// 2. POST Add new tyre stock
 router.post('/', async (req, res) => {
-  const { brand, pattern, size, stock_quantity, buying_price, selling_price } = req.body;
-
-  if (!brand || !size || stock_quantity === undefined || !buying_price || !selling_price) {
-    return res.status(400).json({ success: false, message: 'Please provide all required fields.' });
+  const { brand, pattern, size, buying_price, selling_price, stock_quantity } = req.body;
+  if (!brand || !size || !buying_price || !selling_price || stock_quantity === undefined) {
+    return res.status(400).json({ success: false, message: 'All required tyre fields must be filled.' });
   }
 
   try {
     const [result] = await pool.query(
-      'INSERT INTO tyres (brand, pattern, size, stock_quantity, buying_price, selling_price) VALUES (?, ?, ?, ?, ?, ?)',
-      [brand, pattern, size, stock_quantity, buying_price, selling_price]
+      'INSERT INTO tyres (brand, pattern, size, buying_price, selling_price, stock_quantity) VALUES (?, ?, ?, ?, ?, ?)',
+      [brand, pattern || null, size, buying_price, selling_price, stock_quantity]
     );
-    res.status(201).json({
-      success: true,
-      message: 'Tyre added successfully',
-      tyreId: result.insertId
-    });
+    res.status(201).json({ success: true, message: 'Tyre added successfully', id: result.insertId });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 3. POST record a tyre sale & decrement stock
+// 3. POST Record a POS Sale (Transaction-Safe)
 router.post('/sale', async (req, res) => {
-  const { tyre_id, customer_name, quantity_sold } = req.body;
-
+  const { tyre_id, quantity_sold, customer_name } = req.body;
   if (!tyre_id || !quantity_sold || quantity_sold <= 0) {
-    return res.status(400).json({ success: false, message: 'Invalid tyre or quantity.' });
+    return res.status(400).json({ success: false, message: 'Invalid sale parameters.' });
   }
 
-  // Get a dedicated connection from the pool for a transaction
-  const connection = await pool.getConnection();
-
+  const conn = await pool.getConnection();
   try {
-    await connection.beginTransaction();
+    await conn.beginTransaction();
 
-    // Fetch current tyre details
-    const [rows] = await connection.query('SELECT stock_quantity, selling_price FROM tyres WHERE id = ? FOR UPDATE', [tyre_id]);
-    
-    if (rows.length === 0) {
-      await connection.rollback();
-      return res.status(404).json({ success: false, message: 'Tyre not found.' });
+    // Lock the tyre row to check current stock
+    const [tyres] = await conn.query('SELECT * FROM tyres WHERE id = ? FOR UPDATE', [tyre_id]);
+    if (tyres.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: 'Tyre product not found.' });
     }
 
-    const tyre = rows[0];
-
-    // Check inventory
+    const tyre = tyres[0];
     if (tyre.stock_quantity < quantity_sold) {
-      await connection.rollback();
-      return res.status(400).json({ success: false, message: 'Insufficient stock available.' });
+      await conn.rollback();
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient inventory. Available: ${tyre.stock_quantity}, Requested: ${quantity_sold}`
+      });
     }
 
     const unit_price = tyre.selling_price;
     const total_amount = unit_price * quantity_sold;
 
-    // 1. Record the sale
-    await connection.query(
-      'INSERT INTO tyre_sales (tyre_id, customer_name, quantity_sold, unit_price, total_amount) VALUES (?, ?, ?, ?, ?)',
-      [tyre_id, customer_name || 'Walk-in Customer', quantity_sold, unit_price, total_amount]
+    // Decrement stock
+    await conn.query('UPDATE tyres SET stock_quantity = stock_quantity - ? WHERE id = ?', [
+      quantity_sold,
+      tyre_id
+    ]);
+
+    // Insert sale transaction
+    const [saleResult] = await conn.query(
+      'INSERT INTO tyre_sales (tyre_id, quantity_sold, unit_price, total_amount, customer_name) VALUES (?, ?, ?, ?, ?)',
+      [tyre_id, quantity_sold, unit_price, total_amount, customer_name || 'Walk-in Customer']
     );
 
-    // 2. Reduce the stock quantity
-    await connection.query(
-      'UPDATE tyres SET stock_quantity = stock_quantity - ? WHERE id = ?',
-      [quantity_sold, tyre_id]
-    );
-
-    await connection.commit();
-
+    await conn.commit();
     res.status(201).json({
       success: true,
-      message: 'Sale completed successfully',
-      data: {
-        customer_name: customer_name || 'Walk-in Customer',
-        quantity_sold,
-        total_amount
-      }
+      message: 'Sale recorded and inventory decremented successfully',
+      saleId: saleResult.insertId
     });
   } catch (error) {
-    await connection.rollback();
+    await conn.rollback();
     res.status(500).json({ success: false, message: error.message });
   } finally {
-    connection.release();
+    conn.release();
+  }
+});
+
+// --- ADMIN MANAGEMENT ROUTES ---
+
+// 4. PUT Update tyre details
+router.put('/:id', async (req, res) => {
+  const { id } = req.params;
+  const { brand, pattern, size, buying_price, selling_price, stock_quantity } = req.body;
+  try {
+    await pool.query(
+      `UPDATE tyres 
+       SET brand = ?, pattern = ?, size = ?, buying_price = ?, selling_price = ?, stock_quantity = ? 
+       WHERE id = ?`,
+      [brand, pattern, size, buying_price, selling_price, stock_quantity, id]
+    );
+    res.json({ success: true, message: 'Tyre updated successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 5. DELETE Tyre and linked sales records
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('DELETE FROM tyre_sales WHERE tyre_id = ?', [id]);
+    await conn.query('DELETE FROM tyres WHERE id = ?', [id]);
+    await conn.commit();
+    res.json({ success: true, message: 'Tyre and linked sales records removed' });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// 6. DELETE Sale record (Restores stock quantity)
+router.delete('/sales/:saleId', async (req, res) => {
+  const { saleId } = req.params;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [sales] = await conn.query('SELECT tyre_id, quantity_sold FROM tyre_sales WHERE id = ?', [saleId]);
+    if (sales.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: 'Sale record not found' });
+    }
+    const { tyre_id, quantity_sold } = sales[0];
+    
+    // Rollback stock
+    await conn.query('UPDATE tyres SET stock_quantity = stock_quantity + ? WHERE id = ?', [quantity_sold, tyre_id]);
+    // Delete sale entry
+    await conn.query('DELETE FROM tyre_sales WHERE id = ?', [saleId]);
+    
+    await conn.commit();
+    res.json({ success: true, message: 'Sale deleted and stock restored successfully' });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// 7. GET all sales for Admin management
+router.get('/admin/sales', async (req, res) => {
+  try {
+    const [sales] = await pool.query(`
+      SELECT s.*, t.brand, t.size 
+      FROM tyre_sales s 
+      JOIN tyres t ON s.tyre_id = t.id 
+      ORDER BY s.sale_date DESC
+    `);
+    res.json({ success: true, data: sales });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

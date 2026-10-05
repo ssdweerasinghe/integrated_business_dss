@@ -14,6 +14,7 @@ import { Bar, Doughnut } from 'react-chartjs-2';
 import TyreModule from './components/TyreModule';
 import EVModule from './components/EVModule';
 import FleetModule from './components/FleetModule';
+import AdminManager from './components/AdminManager';
 import Login from './components/Login';
 
 ChartJS.register(
@@ -37,12 +38,23 @@ function App() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  // Role checks
+  const isAdmin = user?.role === 'Admin';
+  const isOwner = user?.role === 'Owner';
+  const isAccountant = user?.role === 'Accountant';
+
+  const canViewDashboard = ['Owner', 'Accountant', 'Admin'].includes(user?.role);
+  const canViewTyres = ['Owner', 'Shop Manager', 'Admin'].includes(user?.role);
+  const canViewEV = ['Owner', 'EV Operator', 'Admin'].includes(user?.role);
+  const canViewFleet = ['Owner', 'Fleet Manager', 'Driver', 'Admin'].includes(user?.role);
+
   // Set default initial tab based on role
   useEffect(() => {
     if (user) {
       if (user.role === 'Shop Manager') setActiveTab('tyres');
       else if (user.role === 'EV Operator') setActiveTab('ev');
       else if (user.role === 'Driver') setActiveTab('fleet');
+      else if (user.role === 'Admin') setActiveTab('admin');
       else setActiveTab('dashboard');
     }
   }, [user]);
@@ -146,12 +158,6 @@ function App() {
     ]
   } : null;
 
-  // RBAC checks
-  const canViewDashboard = ['Owner', 'Accountant'].includes(user.role);
-  const canViewTyres = ['Owner', 'Shop Manager'].includes(user.role);
-  const canViewEV = ['Owner', 'EV Operator'].includes(user.role);
-  const canViewFleet = ['Owner', 'Fleet Manager', 'Driver'].includes(user.role);
-
   return (
     <div className="container-fluid py-4 px-4">
       {/* Header with User Profile, Print Export, and Logout */}
@@ -218,9 +224,19 @@ function App() {
             </button>
           </li>
         )}
+        {isAdmin && (
+          <li className="nav-item">
+            <button
+              className={`btn ${activeTab === 'admin' ? 'btn-danger' : 'btn-outline-danger'}`}
+              onClick={() => setActiveTab('admin')}
+            >
+              🛡️ Admin Data Manager
+            </button>
+          </li>
+        )}
       </ul>
 
-      {/* Active Tab View */}
+      {/* 1. DASHBOARD VIEW */}
       {activeTab === 'dashboard' && canViewDashboard && summary && (
         <>
           <div className="row g-3 mb-4">
@@ -330,16 +346,24 @@ function App() {
         </>
       )}
 
+      {/* 2. TYRES VIEW */}
       {activeTab === 'tyres' && canViewTyres && (
         <TyreModule onDataChanged={fetchAnalytics} />
       )}
 
+      {/* 3. EV VIEW */}
       {activeTab === 'ev' && canViewEV && (
         <EVModule onDataChanged={fetchAnalytics} />
       )}
 
+      {/* 4. FLEET VIEW */}
       {activeTab === 'fleet' && canViewFleet && (
         <FleetModule onDataChanged={fetchAnalytics} />
+      )}
+
+      {/* 5. ADMIN MANAGER VIEW */}
+      {activeTab === 'admin' && isAdmin && (
+        <AdminManager onDataChanged={fetchAnalytics} />
       )}
     </div>
   );
