@@ -56,3 +56,36 @@ CREATE TABLE IF NOT EXISTS charging_sessions (
     total_amount DECIMAL(10, 2) NOT NULL,
     FOREIGN KEY (point_id) REFERENCES charging_points(id) ON DELETE CASCADE
 );
+
+-- 6. Vehicles Table
+CREATE TABLE IF NOT EXISTS vehicles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    plate_number VARCHAR(20) NOT NULL UNIQUE,
+    model VARCHAR(50) NOT NULL,
+    driver_name VARCHAR(100) NOT NULL,
+    status ENUM('Active', 'Maintenance', 'Inactive') DEFAULT 'Active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. Fleet Trips / Daily Earnings Table
+CREATE TABLE IF NOT EXISTS fleet_trips (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    vehicle_id INT NOT NULL,
+    platform VARCHAR(50) DEFAULT 'Uber',
+    trip_date DATE NOT NULL,
+    gross_earnings DECIMAL(10, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+);
+
+-- 8. Fleet Expenses Table
+CREATE TABLE IF NOT EXISTS fleet_expenses (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    vehicle_id INT NOT NULL,
+    expense_type ENUM('Fuel', 'Maintenance', 'Insurance', 'Other') NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    expense_date DATE NOT NULL,
+    description VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+);
