@@ -14,6 +14,7 @@ import { Bar, Doughnut } from 'react-chartjs-2';
 import TyreModule from './components/TyreModule';
 import EVModule from './components/EVModule';
 import FleetModule from './components/FleetModule';
+import Login from './components/Login';
 
 ChartJS.register(
   CategoryScale,
@@ -26,10 +27,25 @@ ChartJS.register(
 );
 
 function App() {
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('dss_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Set default initial tab based on role
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'Shop Manager') setActiveTab('tyres');
+      else if (user.role === 'EV Operator') setActiveTab('ev');
+      else if (user.role === 'Driver') setActiveTab('fleet');
+      else setActiveTab('dashboard');
+    }
+  }, [user]);
 
   const fetchAnalytics = () => {
     axios.get('http://localhost:5000/api/analytics/summary')
@@ -47,8 +63,26 @@ function App() {
   };
 
   useEffect(() => {
-    fetchAnalytics();
-  }, []);
+    if (user) {
+      fetchAnalytics();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('dss_token');
+    localStorage.removeItem('dss_user');
+    setUser(null);
+  };
+
+  const handlePrintReport = () => {
+    window.print();
+  };
+
+  if (!user) {
+    return <Login onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} />;
+  }
 
   if (loading) {
     return (
@@ -71,10 +105,10 @@ function App() {
     );
   }
 
-  const { summary, decision_insights } = data;
-  const { breakdown } = summary;
+  const { summary, decision_insights } = data || { summary: null, decision_insights: [] };
+  const breakdown = summary?.breakdown;
 
-  const barChartData = {
+  const barChartData = breakdown ? {
     labels: ['Tyre Sales', 'EV Charging', 'Fleet Operations'],
     datasets: [
       {
@@ -96,9 +130,9 @@ function App() {
         backgroundColor: 'rgba(75, 192, 192, 0.75)'
       }
     ]
-  };
+  } : null;
 
-  const doughnutData = {
+  const doughnutData = breakdown ? {
     labels: ['Tyre Sales', 'EV Charging', 'Fleet Operations'],
     datasets: [
       {
@@ -110,61 +144,85 @@ function App() {
         backgroundColor: ['#36A2EB', '#4BC0C0', '#FFCE56']
       }
     ]
-  };
+  } : null;
+
+  // RBAC checks
+  const canViewDashboard = ['Owner', 'Accountant'].includes(user.role);
+  const canViewTyres = ['Owner', 'Shop Manager'].includes(user.role);
+  const canViewEV = ['Owner', 'EV Operator'].includes(user.role);
+  const canViewFleet = ['Owner', 'Fleet Manager', 'Driver'].includes(user.role);
 
   return (
     <div className="container-fluid py-4 px-4">
-      {/* Header */}
+      {/* Header with User Profile, Print Export, and Logout */}
       <header className="pb-3 mb-4 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
           <h2 className="fw-bold text-dark m-0">Integrated Business Decision Support System</h2>
           <span className="text-muted">Case Study: Multi-Sector Operations in Piliyandala</span>
         </div>
-        <div className="d-flex align-items-center gap-2">
-          <span className="badge bg-success fs-6">System Live</span>
+        <div className="d-flex align-items-center gap-3">
+          {canViewDashboard && (
+            <button className="btn btn-outline-secondary btn-sm" onClick={handlePrintReport}>
+              🖨️ Export PDF / Print
+            </button>
+          )}
+          <div className="text-end">
+            <div className="fw-semibold text-dark">{user.name}</div>
+            <span className="badge bg-secondary">{user.role}</span>
+          </div>
+          <button className="btn btn-outline-danger btn-sm" onClick={handleLogout}>
+            Sign Out
+          </button>
         </div>
       </header>
 
-      {/* Navigation Tabs */}
+      {/* Role-Based Navigation Tabs */}
       <ul className="nav nav-pills mb-4 gap-2">
-        <li className="nav-item">
-          <button
-            className={`btn ${activeTab === 'dashboard' ? 'btn-primary' : 'btn-outline-secondary'}`}
-            onClick={() => { setActiveTab('dashboard'); fetchAnalytics(); }}
-          >
-            📊 Executive Dashboard
-          </button>
-        </li>
-        <li className="nav-item">
-          <button
-            className={`btn ${activeTab === 'tyres' ? 'btn-primary' : 'btn-outline-secondary'}`}
-            onClick={() => setActiveTab('tyres')}
-          >
-            🛞 Tyre Inventory & Sales
-          </button>
-        </li>
-        <li className="nav-item">
-          <button
-            className={`btn ${activeTab === 'ev' ? 'btn-primary' : 'btn-outline-secondary'}`}
-            onClick={() => setActiveTab('ev')}
-          >
-            ⚡ EV Charging Station
-          </button>
-        </li>
-        <li className="nav-item">
-          <button
-            className={`btn ${activeTab === 'fleet' ? 'btn-primary' : 'btn-outline-secondary'}`}
-            onClick={() => setActiveTab('fleet')}
-          >
-            🚗 Fleet Operations
-          </button>
-        </li>
+        {canViewDashboard && (
+          <li className="nav-item">
+            <button
+              className={`btn ${activeTab === 'dashboard' ? 'btn-primary' : 'btn-outline-secondary'}`}
+              onClick={() => { setActiveTab('dashboard'); fetchAnalytics(); }}
+            >
+              📊 Executive Dashboard
+            </button>
+          </li>
+        )}
+        {canViewTyres && (
+          <li className="nav-item">
+            <button
+              className={`btn ${activeTab === 'tyres' ? 'btn-primary' : 'btn-outline-secondary'}`}
+              onClick={() => setActiveTab('tyres')}
+            >
+              🛞 Tyre Inventory & Sales
+            </button>
+          </li>
+        )}
+        {canViewEV && (
+          <li className="nav-item">
+            <button
+              className={`btn ${activeTab === 'ev' ? 'btn-primary' : 'btn-outline-secondary'}`}
+              onClick={() => setActiveTab('ev')}
+            >
+              ⚡ EV Charging Station
+            </button>
+          </li>
+        )}
+        {canViewFleet && (
+          <li className="nav-item">
+            <button
+              className={`btn ${activeTab === 'fleet' ? 'btn-primary' : 'btn-outline-secondary'}`}
+              onClick={() => setActiveTab('fleet')}
+            >
+              🚗 Fleet Operations
+            </button>
+          </li>
+        )}
       </ul>
 
-      {/* Render Active View */}
-      {activeTab === 'dashboard' && (
+      {/* Active Tab View */}
+      {activeTab === 'dashboard' && canViewDashboard && summary && (
         <>
-          {/* Top Metric Cards */}
           <div className="row g-3 mb-4">
             <div className="col-12 col-md-6 col-lg-3">
               <div className="card shadow-sm border-0 border-start border-primary border-4">
@@ -203,7 +261,6 @@ function App() {
             </div>
           </div>
 
-          {/* Decision Support Insights */}
           <div className="row mb-4">
             <div className="col-12">
               <div className="card shadow-sm border-0">
@@ -227,7 +284,6 @@ function App() {
             </div>
           </div>
 
-          {/* Charts Section */}
           <div className="row g-4 mb-4">
             <div className="col-12 col-lg-8">
               <div className="card shadow-sm border-0 h-100">
@@ -235,14 +291,16 @@ function App() {
                   Sector Comparison: Revenue vs Profit
                 </div>
                 <div className="card-body" style={{ minHeight: '320px' }}>
-                  <Bar
-                    data={barChartData}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: { legend: { position: 'top' } }
-                    }}
-                  />
+                  {barChartData && (
+                    <Bar
+                      data={barChartData}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'top' } }
+                      }}
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -254,14 +312,16 @@ function App() {
                 </div>
                 <div className="card-body d-flex justify-content-center align-items-center" style={{ minHeight: '320px' }}>
                   <div style={{ width: '85%' }}>
-                    <Doughnut
-                      data={doughnutData}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        plugins: { legend: { position: 'bottom' } }
-                      }}
-                    />
+                    {doughnutData && (
+                      <Doughnut
+                        data={doughnutData}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: true,
+                          plugins: { legend: { position: 'bottom' } }
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -270,15 +330,15 @@ function App() {
         </>
       )}
 
-      {activeTab === 'tyres' && (
+      {activeTab === 'tyres' && canViewTyres && (
         <TyreModule onDataChanged={fetchAnalytics} />
       )}
 
-      {activeTab === 'ev' && (
+      {activeTab === 'ev' && canViewEV && (
         <EVModule onDataChanged={fetchAnalytics} />
       )}
 
-      {activeTab === 'fleet' && (
+      {activeTab === 'fleet' && canViewFleet && (
         <FleetModule onDataChanged={fetchAnalytics} />
       )}
     </div>
