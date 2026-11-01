@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
 function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -12,9 +14,12 @@ function Login({ onLoginSuccess }) {
     setLoading(true);
     setError(null);
 
+    const credential = email.trim();
+
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
-        email: email.trim(),
+      const response = await axios.post(`${API_BASE}/api/auth/login`, {
+        username: credential,
+        email: credential,
         password: password.trim()
       });
 
@@ -25,13 +30,13 @@ function Login({ onLoginSuccess }) {
           onLoginSuccess(response.data.user);
         }
       } else {
-        setError(response.data.message || 'Authentication failed. Please check your credentials.');
+        setError(response.data?.message || 'Authentication failed. Please check your credentials.');
       }
     } catch (err) {
       console.error(err);
       setError(
         err.response?.data?.message ||
-        'Cannot reach authentication server. Verify backend is running on port 5000.'
+        'Cannot reach authentication server. Verify the backend service is running and accessible.'
       );
     } finally {
       setLoading(false);
@@ -81,11 +86,11 @@ function Login({ onLoginSuccess }) {
         )}
 
         <form onSubmit={handleLogin}>
-          {/* Email Input */}
+          {/* Email / Username Input */}
           <div className="mb-3">
-            <label className="form-label small fw-semibold text-white">Work Email Address</label>
+            <label className="form-label small fw-semibold text-white">Work Email / Username</label>
             <input
-              type="email"
+              type="text"
               className="form-control form-control-lg rounded-3 fs-6"
               style={{
                 backgroundColor: '#0f172a',
@@ -94,7 +99,8 @@ function Login({ onLoginSuccess }) {
               }}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
+              autoComplete="username"
+              placeholder="admin"
               required
             />
           </div>
@@ -113,6 +119,7 @@ function Login({ onLoginSuccess }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
+              placeholder="••••••••"
               required
             />
           </div>
