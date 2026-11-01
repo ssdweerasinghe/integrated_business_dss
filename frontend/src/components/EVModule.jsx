@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
+// Centralized dynamic API Base URL resolving to Vercel production or local fallback
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
 function EVModule({ onDataChanged }) {
   const [points, setPoints] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -22,8 +25,8 @@ function EVModule({ onDataChanged }) {
   const fetchEVData = async () => {
     try {
       const [pointsRes, sessionsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/ev/points'),
-        axios.get('http://localhost:5000/api/ev/sessions')
+        axios.get(`${API_BASE}/api/ev/points`),
+        axios.get(`${API_BASE}/api/ev/sessions`)
       ]);
 
       if (pointsRes?.data?.success) {
@@ -57,7 +60,7 @@ function EVModule({ onDataChanged }) {
     if (!selectedPointId || !normalizedVehicleNumber || !energyConsumed || normalizedEnergy <= 0) return;
 
     try {
-      const res = await axios.post('http://localhost:5000/api/ev/sessions', {
+      const res = await axios.post(`${API_BASE}/api/ev/sessions`, {
         point_id: Number(selectedPointId),
         charging_point_id: Number(selectedPointId),
         vehicle_number: normalizedVehicleNumber,
@@ -90,7 +93,7 @@ function EVModule({ onDataChanged }) {
 
     setSubmittingBay(true);
     try {
-      const res = await axios.post('http://localhost:5000/api/ev/points', {
+      const res = await axios.post(`${API_BASE}/api/ev/points`, {
         name: newBayName.trim(),
         charger_type: newChargerType,
         rate_per_kwh: parseFloat(newTariffRate),
