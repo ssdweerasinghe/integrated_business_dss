@@ -2,104 +2,120 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const pool = require('../config/db');
+const db = require('../config/db');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-dss-secret-change-me';
-const VALID_ROLES = new Set([
-  'Owner',
-  'Admin',
-  'Shop Manager',
-  'EV Operator',
-  'EV System Manager',
-  'Fleet Manager',
-  'Fleet Operation Manager',
-  'Driver',
-  'Accountant'
-]);
-
-const normalizeRole = (role) => {
-  if (!role) return null;
-  const trimmed = String(role).trim();
-  return VALID_ROLES.has(trimmed) ? trimmed : null;
-};
-
-// 1. POST Register a user
-router.post('/register', async (req, res) => {
-  const { name, email, password, role } = req.body;
-  const normalizedEmail = String(email || '').trim().toLowerCase();
-  const normalizedRole = normalizeRole(role);
-
-  if (!name || !normalizedEmail || !password || !normalizedRole) {
-    return res.status(400).json({ success: false, message: 'Please provide a valid name, email, password and role.' });
-  }
-
+// POST /api/auth/login
+router.post('/login', async (req, res) => {
   try {
-    const [existing] = await pool.query('SELECT id FROM users WHERE LOWER(email) = ?', [normalizedEmail]);
-    if (existing.length > 0) {
-      return res.status(400).json({ success: false, message: 'Email is already registered.' });
+    const identifier = (req.body.email || req.body.username || '').trim();
+    const { password } = req.body;
+
+    if (!identifier || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide both email/username and password.'
+      });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(String(password), salt);
-
-    const [result] = await pool.query(
-      'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-      [String(name).trim(), normalizedEmail, hashedPassword, normalizedRole]
-    );
-
-    res.status(201).json({
-      success: true,
-      message: 'User registered successfully',
-      userId: result.insertId
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// 2. POST Login user
-router.post('/login', async (req, res) => {
-  const { email, username, password } = req.body;
-  const identifier = String(email || username || '').trim().toLowerCase();
-
-  if (!identifier || !password) {
-    return res.status(400).json({ success: false, message: 'Please provide email/username and password.' });
-  }
-
-  try {
-    const [users] = await pool.query(
-      'SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(name) = ? LIMIT 1',
+    // Support lookup by either email OR username
+    const [users] = await db.query(
+      'SELECT * FROM users WHERE email = ? OR username = ? LIMIT 1',
       [identifier, identifier]
     );
 
     if (users.length === 0) {
-      return res.status(400).json({ success: false, message: 'Invalid credentials.' });
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials.'
+      });
     }
 
     const user = users[0];
-    const isMatch = await bcrypt.compare(String(password), user.password);
-    if (!isMatch) {
-      return res.status(400).json({ success: false, message: 'Invalid credentials.' });
+
+    // Verify password via bcrypt hash or plain text fallback
+    let isMatch = false;
+    if (user.password && (user.password.startsWith('$2a$') || user.password.startsWith('$2b$'))) {
+      isMatch = await bcrypt.compare(password, user.password);
+    } else {
+      isMatch = (user.password === password);
     }
 
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials.'
+      });
+    }
+
+    // Sign JWT token
     const token = jwt.sign(
-      { id: user.id, name: user.name, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '1d' }
+      { id: user.id, username: user.username, role: user.role },
+      process.env.JWT_SECRET || 'integrated_business_dss_jwt_secret_key',
+      { expiresIn: '8h' }
     );
 
-    res.json({
+    return res.json({
       success: true,
+      message: 'Authentication successful',
       token,
       user: {
         id: user.id,
-        name: user.name,
+        username: user.username,
+        name: user.username.toUpperCase(),
         email: user.email,
         role: user.role
       }
     });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+  } catch (err) {
+    console.error('Authentication Error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Authentication server error: ' + err.message
+    });
+  }
+});
+
+// GET /api/auth/users (for AdminManager module)
+router.get('/users', async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      'SELECT id, username, email, role, created_at FROM users ORDER BY id ASC'
+    );
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('Fetch users error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/auth/register (for AdminManager user creation)
+router.post('/register', async (req, res) => {
+  try {
+    const { username, email, password, role } = req.body;
+
+    if (!username || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username, email, and password are required.'
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const userRole = role || 'Driver';
+
+    const [result] = await db.query(
+      'INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)',
+      [username.trim(), email.trim(), hashedPassword, userRole]
+    );
+
+    return res.json({
+      success: true,
+      message: `User ${username} successfully registered.`,
+      userId: result.insertId
+    });
+  } catch (err) {
+    console.error('Registration error:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 
