@@ -18,6 +18,8 @@ import AdminManager from './components/AdminManager';
 import Login from './components/Login';
 import { API_BASE } from './config';
 
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -94,7 +96,7 @@ function App() {
         setLoading(false);
       })
       .catch((err) => {
-        console.error(err);
+        console.error('Analytics Error:', err);
         setError('Cannot connect to backend server. Verify that the backend service is running and accessible.');
         setLoading(false);
       });
