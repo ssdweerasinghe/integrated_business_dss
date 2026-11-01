@@ -17,7 +17,10 @@ function AdminManager({ onDataChanged }) {
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/api/auth/users`);
+      const token = localStorage.getItem('dss_token');
+      const res = await axios.get(`${API_BASE}/api/auth/users`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       if (res.data?.success) {
         setUsers(res.data.data);
       }
@@ -39,11 +42,15 @@ function AdminManager({ onDataChanged }) {
     setError(null);
 
     try {
+      const token = localStorage.getItem('dss_token');
       const res = await axios.post(`${API_BASE}/api/auth/register`, {
+        name: username.trim(),
         username: username.trim(),
         email: email.trim(),
         password,
         role
+      }, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
 
       if (res.data?.success) {
@@ -111,7 +118,7 @@ function AdminManager({ onDataChanged }) {
                     {users.map((u) => (
                       <tr key={u.id}>
                         <td className="ps-4 fw-semibold text-secondary">#{u.id}</td>
-                        <td className="fw-bold">{u.username}</td>
+                        <td className="fw-bold">{u.name || u.username}</td>
                         <td><code>{u.email}</code></td>
                         <td>
                           <span

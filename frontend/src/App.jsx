@@ -17,6 +17,7 @@ import EVModule from './components/EVModule';
 import FleetModule from './components/FleetModule';
 import AdminManager from './components/AdminManager';
 import Login from './components/Login';
+import { API_BASE } from './config';
 
 ChartJS.register(
   CategoryScale,
@@ -28,14 +29,18 @@ ChartJS.register(
   ArcElement
 );
 
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
-
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [theme, setTheme] = useState(() => localStorage.getItem('dss_theme') || 'light');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-bs-theme', theme);
+    localStorage.setItem('dss_theme', theme);
+  }, [theme]);
 
   // Restore authenticated session
   useEffect(() => {
@@ -82,6 +87,10 @@ function App() {
     localStorage.removeItem('dss_user');
     setCurrentUser(null);
     setData(null);
+  };
+
+  const handlePrintReport = () => {
+    window.print();
   };
 
   if (!currentUser) {
@@ -144,7 +153,17 @@ function App() {
             <span>Integrated Business DSS</span>
           </span>
 
-          <div className="d-flex align-items-center gap-3">
+          <div className="d-flex align-items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              className="btn btn-outline-light btn-sm rounded-pill px-3"
+              onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+            >
+              {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
+            </button>
+            <button className="btn btn-outline-light btn-sm rounded-pill px-3" onClick={handlePrintReport}>
+              🖨️ Print
+            </button>
             <div className="text-end text-light d-none d-sm-block">
               <small className="d-block text-secondary lh-1">Operator Profile</small>
               <span className="fw-semibold small">{currentUser.name || currentUser.username}</span>

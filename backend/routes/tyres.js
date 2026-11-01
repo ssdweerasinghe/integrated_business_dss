@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
+const { requireAdmin } = require('./auth');
 
 // 1. GET all tyres in inventory
 router.get('/', async (req, res) => {
@@ -132,7 +133,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // 6. DELETE Tyre (and cascade-removes its associated sales records safely)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const conn = await pool.getConnection();
   try {
@@ -150,7 +151,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // 7. DELETE Sale record (Restores the stock quantity to inventory)
-router.delete('/sales/:saleId', async (req, res) => {
+router.delete('/sales/:saleId', requireAdmin, async (req, res) => {
   const { saleId } = req.params;
   const conn = await pool.getConnection();
   try {

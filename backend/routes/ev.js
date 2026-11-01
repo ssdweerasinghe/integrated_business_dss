@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
+const { requireAdmin } = require('./auth');
 
 // 1. GET all charging points
 router.get('/points', async (req, res) => {
@@ -90,7 +91,7 @@ router.post('/sessions', async (req, res) => {
 // --- ADMIN MANAGEMENT ROUTES ---
 
 // 5. DELETE an individual charging session
-router.delete('/sessions/:id', async (req, res) => {
+router.delete('/sessions/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('DELETE FROM charging_sessions WHERE id = ?', [id]);
@@ -101,7 +102,7 @@ router.delete('/sessions/:id', async (req, res) => {
 });
 
 // 6. DELETE a charging point and its linked session history
-router.delete('/points/:id', async (req, res) => {
+router.delete('/points/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const conn = await pool.getConnection();
   try {

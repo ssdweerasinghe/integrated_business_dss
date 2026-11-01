@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
+const { requireAdmin } = require('./auth');
 
 // 1. GET all fleet vehicles
 router.get('/vehicles', async (req, res) => {
@@ -90,7 +91,7 @@ router.get('/admin/records', async (req, res) => {
 });
 
 // 6. DELETE a trip earning record
-router.delete('/trips/:id', async (req, res) => {
+router.delete('/trips/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('DELETE FROM fleet_trips WHERE id = ?', [id]);
@@ -101,7 +102,7 @@ router.delete('/trips/:id', async (req, res) => {
 });
 
 // 7. DELETE an expense voucher
-router.delete('/expenses/:id', async (req, res) => {
+router.delete('/expenses/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('DELETE FROM fleet_expenses WHERE id = ?', [id]);
@@ -112,7 +113,7 @@ router.delete('/expenses/:id', async (req, res) => {
 });
 
 // 8. DELETE a vehicle (and cascades to remove its linked trips & expenses)
-router.delete('/vehicles/:id', async (req, res) => {
+router.delete('/vehicles/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const conn = await pool.getConnection();
   try {

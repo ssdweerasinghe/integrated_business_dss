@@ -4,10 +4,102 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
-// POST /api/auth/login
+const JWT_SECRET = process.env.JWT_SECRET || 'integrated_business_dss_jwt_secret_key';
+const VALID_ROLES = new Set([
+  'Admin',
+  'Owner',
+  'Shop Manager',
+  'EV Operator',
+  'EV System Manager',
+  'Fleet Manager',
+  'Fleet Operation Manager',
+  'Driver',
+  'Accountant'
+]);
+
+const normalizeRole = (role) => {
+  const value = String(role || '').trim();
+  return VALID_ROLES.has(value) ? value : null;
+};
+
+const requireAdmin = async (req, res, next) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Authentication required.' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded || decoded.role !== 'Admin') {
+      return res.status(403).json({ success: false, message: 'Admin access required.' });
+    }
+    req.user = decoded;
+    return next();
+  } catch (error) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
+  }
+};
+
+router.get('/users', requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      'SELECT id, name, email, role, created_at FROM users ORDER BY id ASC'
+    );
+
+    const formatted = rows.map((user) => ({
+      ...user,
+      username: user.name,
+      name: user.name
+    }));
+
+    return res.json({ success: true, data: formatted });
+  } catch (err) {
+    console.error('Fetch users error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.post('/register', async (req, res) => {
+  try {
+    const { username, name, email, password, role } = req.body;
+    const submittedName = String(name || username || '').trim();
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedRole = normalizeRole(role) || 'Driver';
+
+    if (!submittedName || !normalizedEmail || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, and password are required.'
+      });
+    }
+
+    const [existing] = await db.query('SELECT id FROM users WHERE email = ? LIMIT 1', [normalizedEmail]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: 'Email is already registered.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const [result] = await db.query(
+      'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
+      [submittedName, normalizedEmail, hashedPassword, normalizedRole]
+    );
+
+    return res.json({
+      success: true,
+      message: `User ${submittedName} successfully registered.`,
+      userId: result.insertId
+    });
+  } catch (err) {
+    console.error('Registration error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 router.post('/login', async (req, res) => {
   try {
-    const identifier = (req.body.email || req.body.username || '').trim();
+    const identifier = String(req.body.email || req.body.username || '').trim().toLowerCase();
     const { password } = req.body;
 
     if (!identifier || !password) {
@@ -17,40 +109,27 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Support lookup by either email OR username
     const [users] = await db.query(
-      'SELECT * FROM users WHERE email = ? OR username = ? LIMIT 1',
+      'SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(name) = ? LIMIT 1',
       [identifier, identifier]
     );
 
     if (users.length === 0) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials.'
-      });
+      return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     }
 
     const user = users[0];
-
-    // Verify password via bcrypt hash or plain text fallback
-    let isMatch = false;
-    if (user.password && (user.password.startsWith('$2a$') || user.password.startsWith('$2b$'))) {
-      isMatch = await bcrypt.compare(password, user.password);
-    } else {
-      isMatch = (user.password === password);
-    }
+    const isMatch = user.password && (user.password.startsWith('$2a$') || user.password.startsWith('$2b$'))
+      ? await bcrypt.compare(password, user.password)
+      : user.password === password;
 
     if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials.'
-      });
+      return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     }
 
-    // Sign JWT token
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
-      process.env.JWT_SECRET || 'integrated_business_dss_jwt_secret_key',
+      { id: user.id, name: user.name, role: user.role },
+      JWT_SECRET,
       { expiresIn: '8h' }
     );
 
@@ -60,8 +139,8 @@ router.post('/login', async (req, res) => {
       token,
       user: {
         id: user.id,
-        username: user.username,
-        name: user.username.toUpperCase(),
+        username: user.name,
+        name: user.name,
         email: user.email,
         role: user.role
       }
@@ -75,48 +154,5 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET /api/auth/users (for AdminManager module)
-router.get('/users', async (req, res) => {
-  try {
-    const [rows] = await db.query(
-      'SELECT id, username, email, role, created_at FROM users ORDER BY id ASC'
-    );
-    return res.json({ success: true, data: rows });
-  } catch (err) {
-    console.error('Fetch users error:', err);
-    return res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-// POST /api/auth/register (for AdminManager user creation)
-router.post('/register', async (req, res) => {
-  try {
-    const { username, email, password, role } = req.body;
-
-    if (!username || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Username, email, and password are required.'
-      });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const userRole = role || 'Driver';
-
-    const [result] = await db.query(
-      'INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)',
-      [username.trim(), email.trim(), hashedPassword, userRole]
-    );
-
-    return res.json({
-      success: true,
-      message: `User ${username} successfully registered.`,
-      userId: result.insertId
-    });
-  } catch (err) {
-    console.error('Registration error:', err);
-    return res.status(500).json({ success: false, message: err.message });
-  }
-});
-
 module.exports = router;
+module.exports.requireAdmin = requireAdmin;
