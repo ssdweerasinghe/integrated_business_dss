@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+import { API_BASE } from '../config';
 
 function TyreModule({ onDataChanged }) {
   const [tyres, setTyres] = useState([]);
@@ -73,10 +72,14 @@ function TyreModule({ onDataChanged }) {
     if (!selectedTyre) return;
 
     try {
-      const res = await axios.post(`${API_BASE}/api/tyres/sell`, {
+      const qty = parseInt(saleQty, 10);
+      const unitPrice = parseFloat(salePrice || selectedTyre.selling_price);
+
+      const res = await axios.post(`${API_BASE}/api/tyres/sale`, {
         tyre_id: selectedTyre.id,
-        quantity: parseInt(saleQty, 10),
-        sale_price_per_unit: parseFloat(salePrice || selectedTyre.selling_price)
+        quantity_sold: qty,
+        customer_name: 'Walk-in Customer',
+        sale_price_per_unit: unitPrice
       });
 
       if (res.data?.success) {

@@ -31,17 +31,36 @@ router.post('/vehicles', async (req, res) => {
   }
 });
 
-// 3. POST Record daily ride-hailing earnings (Uber / PickMe / Private)
+// 3. GET all trip records
+router.get('/trips', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT t.*, v.plate_number, v.model
+      FROM fleet_trips t
+      JOIN vehicles v ON t.vehicle_id = v.id
+      ORDER BY t.trip_date DESC, t.id DESC
+    `);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 4. POST Record daily ride-hailing earnings (Uber / PickMe / Private)
 router.post('/trips', async (req, res) => {
-  const { vehicle_id, platform, trip_date, gross_earnings } = req.body;
-  if (!vehicle_id || !platform || !gross_earnings || gross_earnings <= 0) {
+  const { vehicle_id, platform, trip_date, gross_earnings, revenue } = req.body;
+  const resolvedVehicleId = vehicle_id;
+  const resolvedPlatform = platform || 'Fleet Dispatch';
+  const resolvedGrossEarnings = Number(gross_earnings ?? revenue);
+
+  if (!resolvedVehicleId || !resolvedPlatform || !Number.isFinite(resolvedGrossEarnings) || resolvedGrossEarnings <= 0) {
     return res.status(400).json({ success: false, message: 'Vehicle, platform, and positive gross earnings are required.' });
   }
 
   try {
     const [result] = await pool.query(
       'INSERT INTO fleet_trips (vehicle_id, platform, trip_date, gross_earnings) VALUES (?, ?, ?, ?)',
-      [vehicle_id, platform, trip_date || new Date().toISOString().slice(0, 10), gross_earnings]
+      [resolvedVehicleId, resolvedPlatform, trip_date || new Date().toISOString().slice(0, 10), resolvedGrossEarnings]
     );
     res.status(201).json({ success: true, message: 'Trip earnings recorded', id: result.insertId });
   } catch (error) {
@@ -49,7 +68,22 @@ router.post('/trips', async (req, res) => {
   }
 });
 
-// 4. POST Log operational expenses (Fuel, Maintenance, Insurance, Repair)
+// 5. GET all expenses
+router.get('/expenses', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT e.*, v.plate_number, v.model
+      FROM fleet_expenses e
+      JOIN vehicles v ON e.vehicle_id = v.id
+      ORDER BY e.expense_date DESC, e.id DESC
+    `);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 6. POST Log operational expenses (Fuel, Maintenance, Insurance, Repair)
 router.post('/expenses', async (req, res) => {
   const { vehicle_id, expense_type, amount, description, expense_date } = req.body;
   if (!vehicle_id || !expense_type || !amount || amount <= 0) {

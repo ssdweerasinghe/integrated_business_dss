@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+import { API_BASE } from '../config';
 
 function AdminManager({ onDataChanged }) {
   const [users, setUsers] = useState([]);
@@ -95,7 +94,6 @@ function AdminManager({ onDataChanged }) {
       {successMsg && <div className="alert alert-success rounded-3">{successMsg}</div>}
 
       <div className="row g-4 mb-4">
-        {/* User Accounts Table */}
         <div className="col-12 col-xl-8">
           <div className="card border-0 shadow-sm rounded-4 h-100 overflow-hidden">
             <div className="card-header py-3 px-4 border-bottom bg-body d-flex justify-content-between align-items-center">
@@ -145,7 +143,6 @@ function AdminManager({ onDataChanged }) {
           </div>
         </div>
 
-        {/* Provision New Account Form */}
         <div className="col-12 col-xl-4">
           <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
             <h6 className="fw-bold mb-3">Provision New Account</h6>
@@ -204,7 +201,7 @@ function AdminManager({ onDataChanged }) {
               </div>
 
               <button type="submit" className="btn btn-danger btn-sm rounded-pill fw-semibold mt-3 py-2">
-                Authorize & Create User
+                Create Operator Profile
               </button>
             </form>
           </div>

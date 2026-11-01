@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+import { API_BASE } from '../config';
 
 function EVModule({ onDataChanged }) {
   const [points, setPoints] = useState([]);
@@ -66,9 +65,9 @@ function EVModule({ onDataChanged }) {
       const rate = parseFloat(selectedPoint.rate_per_kwh);
       const total = kwh * rate;
 
-      const res = await axios.post(`${API_BASE}/api/ev/charge`, {
-        charging_point_id: selectedPoint.id,
-        vehicle_number: vehicleNumber.trim(),
+      const res = await axios.post(`${API_BASE}/api/ev/sessions`, {
+        point_id: selectedPoint.id,
+        vehicle_number: vehicleNumber.trim() || 'Unregistered',
         energy_consumed_kwh: kwh,
         rate_per_kwh: rate,
         total_amount: total

@@ -52,8 +52,8 @@ router.get('/sessions', async (req, res) => {
 });
 
 // 4. POST Record a vehicle charging session & calculate tariff fee
-router.post('/sessions', async (req, res) => {
-  const { point_id, charging_point_id, vehicle_number, energy_consumed_kwh } = req.body;
+const recordChargingSession = async (req, res) => {
+  const { point_id, charging_point_id, vehicle_number, energy_consumed_kwh, rate_per_kwh, total_amount } = req.body;
   const resolvedPointId = point_id ?? charging_point_id;
   const numericEnergy = Number(energy_consumed_kwh);
 
@@ -62,31 +62,33 @@ router.post('/sessions', async (req, res) => {
   }
 
   try {
-    // Fetch point tariff rate
     const [points] = await pool.query('SELECT rate_per_kwh FROM charging_points WHERE id = ?', [resolvedPointId]);
     if (points.length === 0) {
       return res.status(404).json({ success: false, message: 'Charging point not found.' });
     }
 
-    const rate = Number(points[0].rate_per_kwh);
-    const total_amount = rate * numericEnergy;
+    const rate = Number(rate_per_kwh ?? points[0].rate_per_kwh);
+    const computedTotal = Number(total_amount ?? (rate * numericEnergy));
 
     const [result] = await pool.query(
       'INSERT INTO charging_sessions (point_id, vehicle_number, energy_consumed_kwh, rate_per_kwh, total_amount) VALUES (?, ?, ?, ?, ?)',
-      [resolvedPointId, vehicle_number || 'Unregistered', numericEnergy, rate, total_amount]
+      [resolvedPointId, vehicle_number || 'Unregistered', numericEnergy, rate, computedTotal]
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Charging session recorded',
       sessionId: result.insertId,
-      total_amount,
-      billedAmount: total_amount
+      total_amount: computedTotal,
+      billedAmount: computedTotal
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
-});
+};
+
+router.post('/sessions', recordChargingSession);
+router.post('/charge', recordChargingSession);
 
 // --- ADMIN MANAGEMENT ROUTES ---
 

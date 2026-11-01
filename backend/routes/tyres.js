@@ -58,9 +58,12 @@ router.post('/', async (req, res) => {
 });
 
 // 4. POST Record a POS Sale (Row-locked ACID Transaction)
-router.post('/sale', async (req, res) => {
-  const { tyre_id, quantity_sold, customer_name } = req.body;
-  if (!tyre_id || !quantity_sold || quantity_sold <= 0) {
+const recordTyreSale = async (req, res) => {
+  const { tyre_id, quantity_sold, quantity, customer_name } = req.body;
+  const resolvedTyreId = tyre_id;
+  const resolvedQuantity = Number(quantity_sold ?? quantity);
+
+  if (!resolvedTyreId || !Number.isFinite(resolvedQuantity) || resolvedQuantity <= 0) {
     return res.status(400).json({ success: false, message: 'Invalid sale parameters.' });
   }
 
@@ -68,50 +71,50 @@ router.post('/sale', async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // Lock the tyre row to check current stock
-    const [tyres] = await conn.query('SELECT * FROM tyres WHERE id = ? FOR UPDATE', [tyre_id]);
+    const [tyres] = await conn.query('SELECT * FROM tyres WHERE id = ? FOR UPDATE', [resolvedTyreId]);
     if (tyres.length === 0) {
       await conn.rollback();
       return res.status(404).json({ success: false, message: 'Tyre product not found.' });
     }
 
     const tyre = tyres[0];
-    if (tyre.stock_quantity < quantity_sold) {
+    if (tyre.stock_quantity < resolvedQuantity) {
       await conn.rollback();
       return res.status(400).json({
         success: false,
-        message: `Insufficient inventory. Available: ${tyre.stock_quantity}, Requested: ${quantity_sold}`
+        message: `Insufficient inventory. Available: ${tyre.stock_quantity}, Requested: ${resolvedQuantity}`
       });
     }
 
-    const unit_price = tyre.selling_price;
-    const total_amount = unit_price * quantity_sold;
+    const unit_price = Number(req.body.sale_price_per_unit ?? tyre.selling_price);
+    const total_amount = unit_price * resolvedQuantity;
 
-    // Decrement stock
     await conn.query('UPDATE tyres SET stock_quantity = stock_quantity - ? WHERE id = ?', [
-      quantity_sold,
-      tyre_id
+      resolvedQuantity,
+      resolvedTyreId
     ]);
 
-    // Insert sale record
     const [saleResult] = await conn.query(
       'INSERT INTO tyre_sales (tyre_id, quantity_sold, unit_price, total_amount, customer_name) VALUES (?, ?, ?, ?, ?)',
-      [tyre_id, quantity_sold, unit_price, total_amount, customer_name || 'Walk-in Customer']
+      [resolvedTyreId, resolvedQuantity, unit_price, total_amount, customer_name || 'Walk-in Customer']
     );
 
     await conn.commit();
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Sale recorded and inventory decremented successfully',
       saleId: saleResult.insertId
     });
   } catch (error) {
     await conn.rollback();
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   } finally {
     conn.release();
   }
-});
+};
+
+router.post('/sale', recordTyreSale);
+router.post('/sell', recordTyreSale);
 
 // --- ADMIN / EDIT MANAGEMENT ROUTES ---
 

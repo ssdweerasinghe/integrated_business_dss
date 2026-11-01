@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+import { API_BASE } from '../config';
 
 function FleetModule({ onDataChanged }) {
   const [vehicles, setVehicles] = useState([]);
@@ -9,14 +8,11 @@ function FleetModule({ onDataChanged }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // New Trip State
   const [vehicleId, setVehicleId] = useState('');
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
-  const [distanceKm, setDistanceKm] = useState('');
+  const [platform, setPlatform] = useState('Uber');
+  const [tripDate, setTripDate] = useState(new Date().toISOString().slice(0, 10));
   const [revenue, setRevenue] = useState('');
 
-  // Expense State
   const [expVehicleId, setExpVehicleId] = useState('');
   const [expenseType, setExpenseType] = useState('Fuel');
   const [amount, setAmount] = useState('');
@@ -47,16 +43,15 @@ function FleetModule({ onDataChanged }) {
     try {
       const res = await axios.post(`${API_BASE}/api/fleet/trips`, {
         vehicle_id: parseInt(vehicleId, 10),
-        origin,
-        destination,
-        distance_km: parseFloat(distanceKm),
-        revenue: parseFloat(revenue)
+        platform,
+        trip_date: tripDate,
+        gross_earnings: parseFloat(revenue)
       });
 
       if (res.data?.success) {
-        setOrigin('');
-        setDestination('');
-        setDistanceKm('');
+        setVehicleId('');
+        setPlatform('Uber');
+        setTripDate(new Date().toISOString().slice(0, 10));
         setRevenue('');
         fetchFleetData();
         if (onDataChanged) onDataChanged();
@@ -160,6 +155,75 @@ function FleetModule({ onDataChanged }) {
           </div>
         </div>
 
+        {/* Trip Revenue Input */}
+        <div className="col-12 col-lg-6">
+          <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
+            <h6 className="fw-bold mb-3">Log Dispatch Revenue</h6>
+            <form onSubmit={handleAddTrip} className="row g-2">
+              <div className="col-12 col-md-6">
+                <label className="form-label small fw-semibold text-secondary">Vehicle</label>
+                <select
+                  className="form-select form-select-sm rounded-3"
+                  value={vehicleId}
+                  onChange={(e) => setVehicleId(e.target.value)}
+                  required
+                >
+                  <option value="">Select Unit</option>
+                  {vehicles.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.plate_number} - {v.model}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-12 col-md-6">
+                <label className="form-label small fw-semibold text-secondary">Platform</label>
+                <select
+                  className="form-select form-select-sm rounded-3"
+                  value={platform}
+                  onChange={(e) => setPlatform(e.target.value)}
+                >
+                  <option value="Uber">Uber</option>
+                  <option value="PickMe">PickMe</option>
+                  <option value="Private Hire">Private Hire</option>
+                  <option value="Fleet Dispatch">Fleet Dispatch</option>
+                </select>
+              </div>
+
+              <div className="col-12 col-md-6">
+                <label className="form-label small fw-semibold text-secondary">Trip Date</label>
+                <input
+                  type="date"
+                  className="form-control form-control-sm rounded-3"
+                  value={tripDate}
+                  onChange={(e) => setTripDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="col-12 col-md-6">
+                <label className="form-label small fw-semibold text-secondary">Gross Earnings (Rs.)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="form-control form-control-sm rounded-3"
+                  value={revenue}
+                  onChange={(e) => setRevenue(e.target.value)}
+                  placeholder="e.g. 15000"
+                  required
+                />
+              </div>
+
+              <div className="col-12 mt-2">
+                <button type="submit" className="btn btn-warning btn-sm rounded-pill fw-semibold w-100 py-2">
+                  Record Dispatch Trip
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
         {/* Operational Expense Input */}
         <div className="col-12 col-lg-6">
           <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
@@ -230,11 +294,11 @@ function FleetModule({ onDataChanged }) {
             <table className="table table-hover align-middle mb-0">
               <thead className="table-light text-secondary small text-uppercase">
                 <tr>
-                  <th className="ps-4">Trip Route</th>
+                  <th className="ps-4">Platform</th>
                   <th>Vehicle</th>
-                  <th>Distance</th>
+                  <th>Trip Date</th>
                   <th>Gross Fare (Rs.)</th>
-                  <th className="pe-4">Date</th>
+                  <th className="pe-4">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -247,14 +311,12 @@ function FleetModule({ onDataChanged }) {
                 ) : (
                   trips.map((tr) => (
                     <tr key={tr.id}>
-                      <td className="ps-4">
-                        <span className="fw-bold">{tr.origin}</span> → <span>{tr.destination}</span>
-                      </td>
+                      <td className="ps-4 fw-bold">{tr.platform || 'Fleet Dispatch'}</td>
                       <td><code>{tr.plate_number || `Unit #${tr.vehicle_id}`}</code></td>
-                      <td>{tr.distance_km} km</td>
-                      <td className="text-success fw-bold">+Rs. {Number(tr.revenue).toLocaleString()}</td>
-                      <td className="pe-4 text-secondary small">
-                        {new Date(tr.trip_date).toLocaleDateString()}
+                      <td>{new Date(tr.trip_date).toLocaleDateString()}</td>
+                      <td className="text-success fw-bold">+Rs. {Number(tr.gross_earnings ?? tr.revenue).toLocaleString()}</td>
+                      <td className="pe-4">
+                        <span className="badge bg-success-subtle text-success rounded-pill px-2">Settled</span>
                       </td>
                     </tr>
                   ))
