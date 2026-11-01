@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE } from '../config';
 
 function TyreModule({ onDataChanged }) {
   const [tyres, setTyres] = useState([]);
@@ -24,8 +25,8 @@ function TyreModule({ onDataChanged }) {
   const fetchTyreData = async () => {
     try {
       const [tyresRes, salesRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/tyres'),
-        axios.get('http://localhost:5000/api/tyres/sales/history')
+        axios.get(`${API_BASE}/api/tyres`),
+        axios.get(`${API_BASE}/api/tyres/sales/history`)
       ]);
 
       if (tyresRes.data.success) setTyres(tyresRes.data.data);
@@ -46,7 +47,7 @@ function TyreModule({ onDataChanged }) {
     if (!selectedTyreId || saleQty <= 0) return;
 
     try {
-      const res = await axios.post('http://localhost:5000/api/tyres/sale', {
+      const res = await axios.post(`${API_BASE}/api/tyres/sale`, {
         tyre_id: selectedTyreId,
         quantity_sold: parseInt(saleQty),
         customer_name: customerName || 'Walk-in Customer'
@@ -70,7 +71,7 @@ function TyreModule({ onDataChanged }) {
   const handleAddTyre = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('http://localhost:5000/api/tyres', {
+      const res = await axios.post(`${API_BASE}/api/tyres`, {
         brand: newBrand,
         pattern: newPattern,
         size: newSize,

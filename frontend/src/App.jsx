@@ -16,6 +16,7 @@ import EVModule from './components/EVModule';
 import FleetModule from './components/FleetModule';
 import AdminManager from './components/AdminManager';
 import Login from './components/Login';
+import { API_BASE } from './config';
 
 ChartJS.register(
   CategoryScale,
@@ -26,8 +27,6 @@ ChartJS.register(
   Legend,
   ArcElement
 );
-
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 function App() {
   const [user, setUser] = useState(() => {

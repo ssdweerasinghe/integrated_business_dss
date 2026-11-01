@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE } from '../config';
 
 function AdminManager({ onDataChanged }) {
   const [tyres, setTyres] = useState([]);
@@ -16,12 +17,12 @@ function AdminManager({ onDataChanged }) {
   const fetchAllData = async () => {
     try {
       const [tyresRes, salesRes, evPointsRes, evSessRes, vehiclesRes, fleetRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/tyres'),
-        axios.get('http://localhost:5000/api/tyres/sales/history'),
-        axios.get('http://localhost:5000/api/ev/points'),
-        axios.get('http://localhost:5000/api/ev/sessions'),
-        axios.get('http://localhost:5000/api/fleet/vehicles'),
-        axios.get('http://localhost:5000/api/fleet/admin/records')
+        axios.get(`${API_BASE}/api/tyres`),
+        axios.get(`${API_BASE}/api/tyres/sales/history`),
+        axios.get(`${API_BASE}/api/ev/points`),
+        axios.get(`${API_BASE}/api/ev/sessions`),
+        axios.get(`${API_BASE}/api/fleet/vehicles`),
+        axios.get(`${API_BASE}/api/fleet/admin/records`)
       ]);
 
       if (tyresRes.data?.success) setTyres(tyresRes.data.data);
@@ -54,7 +55,7 @@ function AdminManager({ onDataChanged }) {
   const handleDeleteTyre = async (id) => {
     if (!window.confirm('Delete this tyre and all associated sales records permanently?')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/tyres/${id}`);
+      await axios.delete(`${API_BASE}/api/tyres/${id}`);
       setMessage({ type: 'success', text: 'Tyre product and linked sales removed.' });
       triggerChange();
     } catch {
@@ -65,7 +66,7 @@ function AdminManager({ onDataChanged }) {
   const handleDeleteTyreSale = async (id) => {
     if (!window.confirm('Delete this sale record? Inventory stock will be automatically restored.')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/tyres/sales/${id}`);
+      await axios.delete(`${API_BASE}/api/tyres/sales/${id}`);
       setMessage({ type: 'success', text: 'Sale deleted and inventory stock restored successfully.' });
       triggerChange();
     } catch {
@@ -77,7 +78,7 @@ function AdminManager({ onDataChanged }) {
   const handleDeleteEVSession = async (id) => {
     if (!window.confirm('Delete this charging session record?')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/ev/sessions/${id}`);
+      await axios.delete(`${API_BASE}/api/ev/sessions/${id}`);
       setMessage({ type: 'success', text: 'EV session removed from ledger.' });
       triggerChange();
     } catch {
@@ -88,7 +89,7 @@ function AdminManager({ onDataChanged }) {
   const handleDeleteEVPoint = async (id) => {
     if (!window.confirm('Delete this charging bay and all its associated session history?')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/ev/points/${id}`);
+      await axios.delete(`${API_BASE}/api/ev/points/${id}`);
       setMessage({ type: 'success', text: 'Charging point and all its sessions deleted.' });
       triggerChange();
     } catch {
@@ -100,7 +101,7 @@ function AdminManager({ onDataChanged }) {
   const handleDeleteVehicle = async (id) => {
     if (!window.confirm('Delete this vehicle and ALL its linked trip earnings and expense vouchers?')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/fleet/vehicles/${id}`);
+      await axios.delete(`${API_BASE}/api/fleet/vehicles/${id}`);
       setMessage({ type: 'success', text: 'Vehicle and all linked fleet logs deleted.' });
       triggerChange();
     } catch {
@@ -111,7 +112,7 @@ function AdminManager({ onDataChanged }) {
   const handleDeleteFleetTrip = async (id) => {
     if (!window.confirm('Delete this trip earning record?')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/fleet/trips/${id}`);
+      await axios.delete(`${API_BASE}/api/fleet/trips/${id}`);
       setMessage({ type: 'success', text: 'Trip earning record deleted.' });
       triggerChange();
     } catch {
@@ -122,7 +123,7 @@ function AdminManager({ onDataChanged }) {
   const handleDeleteFleetExpense = async (id) => {
     if (!window.confirm('Delete this expense voucher?')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/fleet/expenses/${id}`);
+      await axios.delete(`${API_BASE}/api/fleet/expenses/${id}`);
       setMessage({ type: 'success', text: 'Expense voucher deleted.' });
       triggerChange();
     } catch {

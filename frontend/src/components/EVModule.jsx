@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-
-// Centralized dynamic API Base URL resolving to Vercel production or local fallback
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+import { API_BASE } from '../config';
 
 function EVModule({ onDataChanged }) {
   const [points, setPoints] = useState([]);

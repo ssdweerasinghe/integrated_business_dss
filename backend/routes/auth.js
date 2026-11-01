@@ -4,28 +4,47 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-dss-secret-change-me';
+const VALID_ROLES = new Set([
+  'Owner',
+  'Admin',
+  'Shop Manager',
+  'EV Operator',
+  'EV System Manager',
+  'Fleet Manager',
+  'Fleet Operation Manager',
+  'Driver',
+  'Accountant'
+]);
+
+const normalizeRole = (role) => {
+  if (!role) return null;
+  const trimmed = String(role).trim();
+  return VALID_ROLES.has(trimmed) ? trimmed : null;
+};
+
 // 1. POST Register a user
 router.post('/register', async (req, res) => {
   const { name, email, password, role } = req.body;
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const normalizedRole = normalizeRole(role);
 
-  if (!name || !email || !password || !role) {
-    return res.status(400).json({ success: false, message: 'Please provide all fields.' });
+  if (!name || !normalizedEmail || !password || !normalizedRole) {
+    return res.status(400).json({ success: false, message: 'Please provide a valid name, email, password and role.' });
   }
 
   try {
-    // Check if user already exists
-    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    const [existing] = await pool.query('SELECT id FROM users WHERE LOWER(email) = ?', [normalizedEmail]);
     if (existing.length > 0) {
       return res.status(400).json({ success: false, message: 'Email is already registered.' });
     }
 
-    // Hash password
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(String(password), salt);
 
     const [result] = await pool.query(
       'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-      [name, email, hashedPassword, role]
+      [String(name).trim(), normalizedEmail, hashedPassword, normalizedRole]
     );
 
     res.status(201).json({
@@ -40,30 +59,32 @@ router.post('/register', async (req, res) => {
 
 // 2. POST Login user
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, username, password } = req.body;
+  const identifier = String(email || username || '').trim().toLowerCase();
 
-  if (!email || !password) {
-    return res.status(400).json({ success: false, message: 'Please provide email and password.' });
+  if (!identifier || !password) {
+    return res.status(400).json({ success: false, message: 'Please provide email/username and password.' });
   }
 
   try {
-    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+    const [users] = await pool.query(
+      'SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(name) = ? LIMIT 1',
+      [identifier, identifier]
+    );
+
     if (users.length === 0) {
       return res.status(400).json({ success: false, message: 'Invalid credentials.' });
     }
 
     const user = users[0];
-
-    // Compare passwords
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(String(password), user.password);
     if (!isMatch) {
       return res.status(400).json({ success: false, message: 'Invalid credentials.' });
     }
 
-    // Generate JWT token containing ID and Role
     const token = jwt.sign(
       { id: user.id, name: user.name, role: user.role },
-      process.env.JWT_SECRET,
+      JWT_SECRET,
       { expiresIn: '1d' }
     );
 

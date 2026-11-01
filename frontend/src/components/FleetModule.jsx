@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE } from '../config';
 
 function FleetModule({ onDataChanged }) {
   const [vehicles, setVehicles] = useState([]);
@@ -30,8 +31,8 @@ function FleetModule({ onDataChanged }) {
   const fetchFleetData = async () => {
     try {
       const [vehRes, adminRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/fleet/vehicles'),
-        axios.get('http://localhost:5000/api/fleet/admin/records')
+        axios.get(`${API_BASE}/api/fleet/vehicles`),
+        axios.get(`${API_BASE}/api/fleet/admin/records`)
       ]);
 
       if (vehRes.data.success) setVehicles(vehRes.data.data);
@@ -56,7 +57,7 @@ function FleetModule({ onDataChanged }) {
     if (!plateNumber || !vehicleModel) return;
 
     try {
-      const res = await axios.post('http://localhost:5000/api/fleet/vehicles', {
+      const res = await axios.post(`${API_BASE}/api/fleet/vehicles`, {
         plate_number: plateNumber.trim().toUpperCase(),
         model: vehicleModel.trim(),
         driver_name: assignedDriver.trim() || null,
@@ -86,7 +87,7 @@ function FleetModule({ onDataChanged }) {
     if (!selectedVehicleForTrip || !tripGross || tripGross <= 0) return;
 
     try {
-      const res = await axios.post('http://localhost:5000/api/fleet/trips', {
+      const res = await axios.post(`${API_BASE}/api/fleet/trips`, {
         vehicle_id: selectedVehicleForTrip,
         platform: tripPlatform,
         trip_date: tripDate,
@@ -113,7 +114,7 @@ function FleetModule({ onDataChanged }) {
     if (!selectedVehicleForExp || !expenseAmount || expenseAmount <= 0) return;
 
     try {
-      const res = await axios.post('http://localhost:5000/api/fleet/expenses', {
+      const res = await axios.post(`${API_BASE}/api/fleet/expenses`, {
         vehicle_id: selectedVehicleForExp,
         expense_type: expenseType,
         amount: parseFloat(expenseAmount),
