@@ -27,6 +27,8 @@ ChartJS.register(
   ArcElement
 );
 
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
 function App() {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('dss_user');
@@ -85,7 +87,7 @@ function App() {
   }, [user]);
 
   const fetchAnalytics = () => {
-    axios.get('http://localhost:5000/api/analytics/summary')
+    axios.get(`${API_BASE}/api/analytics/summary`)
       .then((response) => {
         if (response.data && response.data.success) {
           setData(response.data);
@@ -94,7 +96,7 @@ function App() {
       })
       .catch((err) => {
         console.error(err);
-        setError('Cannot connect to backend server. Ensure backend is running on port 5000.');
+        setError('Cannot connect to backend server. Verify that the backend service is running and accessible.');
         setLoading(false);
       });
   };
