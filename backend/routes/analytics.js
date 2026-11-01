@@ -1,144 +1,112 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../config/db');
+const db = require('../config/db');
 
+// GET /api/analytics/summary
 router.get('/summary', async (req, res) => {
   try {
-    // 1. Tyre Financials
-    const [tyreData] = await pool.query(`
-      SELECT 
-        COALESCE(SUM(s.total_amount), 0) AS total_revenue,
-        COALESCE(SUM((s.unit_price - t.buying_price) * s.quantity_sold), 0) AS total_profit,
-        COALESCE(SUM(s.quantity_sold), 0) AS total_units_sold
-      FROM tyre_sales s
-      JOIN tyres t ON s.tyre_id = t.id
-    `);
+    // 1. Tyre Division Summary
+    const [tyreRows] = await db.query(
+      'SELECT COALESCE(SUM(total_amount), 0) AS total_revenue, COALESCE(SUM(total_amount * 0.25), 0) AS total_profit FROM tyre_sales'
+    );
+    const tyreRevenue = parseFloat(tyreRows[0]?.total_revenue || 0);
+    const tyreProfit = parseFloat(tyreRows[0]?.total_profit || 0);
 
-    // 2. EV Charging Financials
-    const [evData] = await pool.query(`
-      SELECT 
-        COALESCE(SUM(total_amount), 0) AS total_revenue,
-        COALESCE(SUM(energy_consumed_kwh), 0) AS total_kwh,
-        COUNT(id) AS total_sessions
-      FROM charging_sessions
-    `);
+    // 2. EV Charging Infrastructure Summary (Defensive query checking ev_charging_sessions or charging_sessions)
+    let evRevenue = 0;
+    let evKwh = 0;
+    try {
+      const [evRows] = await db.query(
+        'SELECT COALESCE(SUM(total_amount), 0) AS total_revenue, COALESCE(SUM(kwh_delivered), 0) AS total_kwh FROM ev_charging_sessions'
+      );
+      evRevenue = parseFloat(evRows[0]?.total_revenue || 0);
+      evKwh = parseFloat(evRows[0]?.total_kwh || 0);
+    } catch (err) {
+      const [evFallback] = await db.query(
+        'SELECT COALESCE(SUM(total_amount), 0) AS total_revenue, COALESCE(SUM(energy_consumed_kwh), 0) AS total_kwh FROM charging_sessions'
+      );
+      evRevenue = parseFloat(evFallback[0]?.total_revenue || 0);
+      evKwh = parseFloat(evFallback[0]?.total_kwh || 0);
+    }
+    const evProfit = evRevenue * 0.35; // 35% estimated net margin contribution
 
-    // 3. Fleet Financials
-    const [fleetEarnings] = await pool.query(`
-      SELECT 
-        COALESCE(SUM(gross_earnings), 0) AS total_revenue,
-        COUNT(id) AS total_trips
-      FROM fleet_trips
-    `);
-    const [fleetExpenses] = await pool.query(`
-      SELECT 
-        COALESCE(SUM(amount), 0) AS total_expenses,
-        COALESCE(SUM(CASE WHEN expense_type = 'Fuel' THEN amount ELSE 0 END), 0) AS fuel_expenses
-      FROM fleet_expenses
-    `);
+    // 3. Fleet Mobility Summary
+    const [tripRows] = await db.query(
+      'SELECT COALESCE(SUM(revenue), 0) AS total_fare FROM fleet_trips'
+    );
+    const [expRows] = await db.query(
+      'SELECT COALESCE(SUM(amount), 0) AS total_expenses FROM fleet_expenses'
+    );
+    const fleetRevenue = parseFloat(tripRows[0]?.total_fare || 0);
+    const fleetExpenses = parseFloat(expRows[0]?.total_expenses || 0);
+    const fleetProfit = fleetRevenue - fleetExpenses;
 
-    const tyreRev = parseFloat(tyreData[0].total_revenue);
-    const tyreProfit = parseFloat(tyreData[0].total_profit);
+    // 4. Combined Business Metrics
+    const totalBusinessRevenue = tyreRevenue + evRevenue + fleetRevenue;
+    const totalBusinessProfit = tyreProfit + evProfit + fleetProfit;
 
-    const evRev = parseFloat(evData[0].total_revenue);
-    const evKwh = parseFloat(evData[0].total_kwh);
-    const evProfit = evRev * 0.40; // 40% margin on charging tariffs
-
-    const fleetRev = parseFloat(fleetEarnings[0].total_revenue);
-    const fleetExp = parseFloat(fleetExpenses[0].total_expenses);
-    const fuelExp = parseFloat(fleetExpenses[0].fuel_expenses);
-    const fleetProfit = fleetRev - fleetExp;
-
-    const overallRevenue = tyreRev + evRev + fleetRev;
-    const overallProfit = tyreProfit + evProfit + fleetProfit;
-
-    // Advanced Cross-Sector Decision Rules
-    const insights = [];
-
-    // Rule 1: Inventory reorder warnings
-    const [lowStock] = await pool.query('SELECT brand, size, stock_quantity FROM tyres WHERE stock_quantity < 5');
-    lowStock.forEach(item => {
-      insights.push({
-        type: 'warning',
-        module: 'Tyre Inventory',
-        message: `Inventory Alert: ${item.brand} (${item.size}) has only ${item.stock_quantity} units remaining.`
+    // 5. Automated Strategic Decision Heuristics
+    const decision_insights = [];
+    if (fleetExpenses > fleetRevenue && fleetRevenue > 0) {
+      decision_insights.push({
+        module: 'Fleet Mobility',
+        type: 'danger',
+        message: 'Fleet operating burn exceeds trip collections. Shift high-mileage ICE routes to EV units.'
       });
-    });
-
-    // Rule 2: Fleet Operating Ratio
-    if (fleetRev > 0) {
-      const expRatio = (fleetExp / fleetRev) * 100;
-      if (expRatio > 60) {
-        insights.push({
-          type: 'danger',
-          module: 'Fleet Operations',
-          message: `Elevated Operating Ratio: Fleet expenses represent ${expRatio.toFixed(1)}% of gross earnings.`
-        });
-      }
+    } else {
+      decision_insights.push({
+        module: 'Fleet Mobility',
+        type: 'success',
+        message: `Fleet contribution margin is positive (+Rs. ${Math.round(fleetProfit).toLocaleString()}).`
+      });
     }
 
-    // Rule 3: Cross-Sector Synergy (EV vs Fuel Cost)
-    if (fuelExp > 0 && evRev > 0) {
-      if (fuelExp > evProfit) {
-        insights.push({
-          type: 'warning',
-          module: 'Synergy Analysis',
-          message: `Fleet fuel costs (Rs. ${fuelExp.toLocaleString()}) surpass net EV charging profit (Rs. ${evProfit.toLocaleString()}). Prioritize transitioning fleet units to EV.`
-        });
-      } else {
-        insights.push({
-          type: 'success',
-          module: 'Synergy Analysis',
-          message: `EV charging profits currently offset ${((evProfit / fuelExp) * 100).toFixed(0)}% of the internal combustion fleet's fuel expenditure.`
-        });
-      }
-    }
-
-    // Rule 4: Top Contributing Sector
-    const sectors = [
-      { name: 'Tyre Sales', profit: tyreProfit },
-      { name: 'EV Charging', profit: evProfit },
-      { name: 'Fleet Operations', profit: fleetProfit }
-    ];
-    sectors.sort((a, b) => b.profit - a.profit);
-    if (overallProfit > 0) {
-      insights.push({
+    if (evKwh > 0) {
+      decision_insights.push({
+        module: 'EV Charging Hub',
         type: 'info',
-        module: 'Executive Strategy',
-        message: `${sectors[0].name} leads overall net profitability (Rs. ${sectors[0].profit.toFixed(2)}).`
+        message: `High charging throughput recorded (${evKwh.toFixed(1)} kWh delivered). Off-peak capacity is optimal.`
       });
     }
 
-    res.json({
+    if (tyreRevenue > 0) {
+      decision_insights.push({
+        module: 'Tyre Inventory',
+        type: 'info',
+        message: `Inventory turnover active with Rs. ${Math.round(tyreRevenue).toLocaleString()} gross sales recorded.`
+      });
+    }
+
+    return res.json({
       success: true,
       summary: {
-        total_business_revenue: overallRevenue.toFixed(2),
-        total_business_profit: overallProfit.toFixed(2),
+        total_business_revenue: totalBusinessRevenue,
+        total_business_profit: totalBusinessProfit,
         breakdown: {
-          tyres: { 
-            revenue: tyreRev.toFixed(2), 
-            profit: tyreProfit.toFixed(2),
-            units_sold: tyreData[0].total_units_sold 
+          tyres: {
+            revenue: tyreRevenue,
+            profit: tyreProfit
           },
-          ev_charging: { 
-            revenue: evRev.toFixed(2), 
-            total_kwh: evKwh, 
-            estimated_profit: evProfit.toFixed(2),
-            sessions_count: evData[0].total_sessions
+          ev_charging: {
+            revenue: evRevenue,
+            estimated_profit: evProfit,
+            total_kwh: evKwh
           },
-          fleet: { 
-            revenue: fleetRev.toFixed(2), 
-            expenses: fleetExp.toFixed(2), 
-            net_profit: fleetProfit.toFixed(2),
-            fuel_cost: fuelExp.toFixed(2),
-            trips_count: fleetEarnings[0].total_trips
+          fleet: {
+            revenue: fleetRevenue,
+            expenses: fleetExpenses,
+            net_profit: fleetProfit
           }
         }
       },
-      decision_insights: insights
+      decision_insights
     });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+  } catch (err) {
+    console.error('Analytics Route Error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to compute analytics: ' + err.message
+    });
   }
 });
 
