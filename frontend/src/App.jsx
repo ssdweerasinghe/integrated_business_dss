@@ -16,6 +16,7 @@ import TyreModule from './components/TyreModule';
 import EVModule from './components/EVModule';
 import FleetModule from './components/FleetModule';
 import AdminManager from './components/AdminManager';
+import InquiryCenter from './components/InquiryCenter';
 import Login from './components/Login';
 
 ChartJS.register(
@@ -35,7 +36,6 @@ const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').repla
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('dss_token');
   if (token) {
-    config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -52,18 +52,18 @@ function App() {
   const getAccessibleTabs = (role) => {
     switch (role) {
       case 'Admin':
-        return ['dashboard', 'tyres', 'ev', 'fleet', 'admin', 'inquiries'];
+        return ['dashboard', 'tyres', 'ev', 'fleet', 'inquiries', 'admin'];
       case 'Owner':
         return ['dashboard', 'tyres', 'ev', 'fleet'];
       case 'Shop Manager':
-        return ['tyres'];
+        return ['tyres', 'inquiries'];
       case 'EV Operator':
       case 'EV System Manager':
       case 'EV Manager':
-        return ['ev'];
+        return ['ev', 'inquiries'];
       case 'Fleet Manager':
       case 'Fleet Operation Manager':
-        return ['fleet'];
+        return ['fleet', 'inquiries'];
       default:
         return ['dashboard'];
     }
@@ -263,6 +263,16 @@ function App() {
               </button>
             </li>
           )}
+          {accessibleTabs.includes('inquiries') && (
+            <li className="nav-item">
+              <button
+                className={`nav-link rounded-pill px-3 py-2 fw-semibold ${activeTab === 'inquiries' ? 'active' : ''}`}
+                onClick={() => setActiveTab('inquiries')}
+              >
+                {currentUser.role === 'Admin' ? '🧾 Manage Inquiries' : '📩 Inquiries'}
+              </button>
+            </li>
+          )}
           {accessibleTabs.includes('admin') && (
             <li className="nav-item">
               <button
@@ -273,24 +283,14 @@ function App() {
               </button>
             </li>
           )}
-          {currentUser?.role === 'Admin' && (
-            <li className="nav-item">
-              <button
-                className={`nav-link rounded-pill px-3 py-2 fw-semibold ${activeTab === 'inquiries' ? 'active' : ''}`}
-                onClick={() => setActiveTab('inquiries')}
-              >
-                🧾 Inquiry Management
-              </button>
-            </li>
-          )}
         </ul>
 
         {/* Tab Route Switching */}
         {activeTab === 'tyres' && <TyreModule currentUser={currentUser} onDataChanged={fetchAnalytics} />}
         {activeTab === 'ev' && <EVModule currentUser={currentUser} onDataChanged={fetchAnalytics} />}
         {activeTab === 'fleet' && <FleetModule currentUser={currentUser} onDataChanged={fetchAnalytics} />}
+        {activeTab === 'inquiries' && <InquiryCenter currentUser={currentUser} />}
         {activeTab === 'admin' && currentUser.role === 'Admin' && <AdminManager onDataChanged={fetchAnalytics} />}
-        {activeTab === 'inquiries' && currentUser.role === 'Admin' && <AdminManager onDataChanged={fetchAnalytics} />}
 
         {activeTab === 'dashboard' && (
           <div>

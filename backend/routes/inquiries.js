@@ -30,31 +30,30 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
-router.get('/', verifyToken, requireRole(['Admin']), async (req, res) => {
+router.get('/my', verifyToken, async (req, res) => {
   try {
+    const role = String(req.user?.role || '').trim();
+    if (!role) {
+      return res.status(400).json({ success: false, message: 'User role is required.' });
+    }
+
     const [rows] = await db.query(
-      'SELECT * FROM inquiries ORDER BY created_at DESC'
+      'SELECT * FROM inquiries WHERE submitted_by_role = ? ORDER BY created_at DESC',
+      [role]
     );
+
     return res.json({ success: true, data: rows });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
 });
 
-router.delete('/:id', verifyToken, requireRole(['Admin']), async (req, res) => {
+router.get('/', verifyToken, requireRole(['Admin']), async (req, res) => {
   try {
-    const inquiryId = Number(req.params.id);
-    if (!inquiryId) {
-      return res.status(400).json({ success: false, message: 'Inquiry ID is required.' });
-    }
-
-    const [result] = await db.query('DELETE FROM inquiries WHERE id = ?', [inquiryId]);
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ success: false, message: 'Inquiry not found.' });
-    }
-
-    return res.json({ success: true, message: 'Inquiry deleted successfully.' });
+    const [rows] = await db.query(
+      'SELECT * FROM inquiries ORDER BY created_at DESC'
+    );
+    return res.json({ success: true, data: rows });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
