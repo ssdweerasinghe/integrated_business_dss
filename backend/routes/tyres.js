@@ -106,7 +106,7 @@ router.post('/sale', verifyToken, requireRole(['Admin', 'Shop Manager']), async 
   }
 });
 
-router.delete('/sales/:saleId', verifyToken, requireRole(['Admin', 'Shop Manager']), async (req, res) => {
+router.delete('/sales/:saleId', verifyToken, requireRole(['Admin']), async (req, res) => {
   try {
     const saleId = Number(req.params.saleId);
 

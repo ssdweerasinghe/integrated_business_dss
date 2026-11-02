@@ -237,9 +237,9 @@ function App() {
         </ul>
 
         {/* Tab Route Switching */}
-        {activeTab === 'tyres' && <TyreModule onDataChanged={fetchAnalytics} />}
-        {activeTab === 'ev' && <EVModule onDataChanged={fetchAnalytics} />}
-        {activeTab === 'fleet' && <FleetModule onDataChanged={fetchAnalytics} />}
+        {activeTab === 'tyres' && <TyreModule currentUser={currentUser} onDataChanged={fetchAnalytics} />}
+        {activeTab === 'ev' && <EVModule currentUser={currentUser} onDataChanged={fetchAnalytics} />}
+        {activeTab === 'fleet' && <FleetModule currentUser={currentUser} onDataChanged={fetchAnalytics} />}
         {activeTab === 'admin' && currentUser.role === 'Admin' && <AdminManager onDataChanged={fetchAnalytics} />}
 
         {activeTab === 'dashboard' && (

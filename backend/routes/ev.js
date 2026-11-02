@@ -31,7 +31,7 @@ router.post('/points', verifyToken, requireRole(['Admin', 'EV System Manager']),
   }
 });
 
-router.delete('/points/:id', verifyToken, requireRole(['Admin', 'EV System Manager']), async (req, res) => {
+router.delete('/points/:id', verifyToken, requireRole(['Admin']), async (req, res) => {
   try {
     const pointId = Number(req.params.id);
     if (!pointId) {
@@ -100,7 +100,7 @@ router.get('/sessions', async (req, res) => {
   }
 });
 
-router.delete('/sessions/:id', verifyToken, requireRole(['Admin', 'EV System Manager', 'EV Operator']), async (req, res) => {
+router.delete('/sessions/:id', verifyToken, requireRole(['Admin']), async (req, res) => {
   try {
     const sessionId = Number(req.params.id);
     if (!sessionId) {

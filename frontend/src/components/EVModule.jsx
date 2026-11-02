@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_BASE } from '../config';
 
-function EVModule({ onDataChanged }) {
+function EVModule({ currentUser, onDataChanged }) {
+  const isAdmin = currentUser?.role === 'Admin';
   const [points, setPoints] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -32,8 +34,20 @@ function EVModule({ onDataChanged }) {
     }
   };
 
+  const fetchSessions = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/api/ev/sessions`);
+      if (res.data?.success) {
+        setSessions(res.data.data);
+      }
+    } catch (err) {
+      console.error('Unable to fetch EV session history', err);
+    }
+  };
+
   useEffect(() => {
     fetchPoints();
+    fetchSessions();
   }, []);
 
   const handleAddPoint = async (e) => {
@@ -78,6 +92,7 @@ function EVModule({ onDataChanged }) {
         setVehicleNumber('');
         setEnergyConsumed('');
         fetchPoints();
+        fetchSessions();
         if (onDataChanged) onDataChanged();
         setTimeout(() => {
           setSelectedPoint(null);
@@ -87,6 +102,37 @@ function EVModule({ onDataChanged }) {
     } catch (err) {
       console.error(err);
       setSessionMsg(err.response?.data?.message || 'Error recording session.');
+    }
+  };
+
+  const handleDeleteSession = async (sessionId) => {
+    if (!isAdmin) {
+      alert('Only administrators can delete EV session records.');
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_BASE}/api/ev/sessions/${sessionId}`);
+      fetchSessions();
+      if (onDataChanged) onDataChanged();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Unable to delete charging session.');
+    }
+  };
+
+  const handleDeleteBay = async (pointId) => {
+    if (!isAdmin) {
+      alert('Only administrators can delete charging bays.');
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_BASE}/api/ev/points/${pointId}`);
+      fetchPoints();
+      fetchSessions();
+      if (onDataChanged) onDataChanged();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Unable to delete charging bay.');
     }
   };
 
@@ -164,12 +210,22 @@ function EVModule({ onDataChanged }) {
                             </span>
                           </td>
                           <td className="pe-4 text-center">
-                            <button
-                              className="btn btn-info btn-sm rounded-pill px-3 fw-semibold text-white"
-                              onClick={() => setSelectedPoint(p)}
-                            >
-                              Start Charge
-                            </button>
+                            <div className="d-flex justify-content-center gap-2">
+                              <button
+                                className="btn btn-info btn-sm rounded-pill px-3 fw-semibold text-white"
+                                onClick={() => setSelectedPoint(p)}
+                              >
+                                Start Charge
+                              </button>
+                              {isAdmin && (
+                                <button
+                                  className="btn btn-outline-danger btn-sm rounded-pill px-3"
+                                  onClick={() => handleDeleteBay(p.id)}
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -287,6 +343,60 @@ function EVModule({ onDataChanged }) {
           </form>
         </div>
       )}
+
+      <div className="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div className="card-header py-3 px-4 border-bottom bg-body d-flex justify-content-between align-items-center">
+          <h6 className="fw-bold m-0">Charging Session Ledger</h6>
+          <span className="badge bg-secondary rounded-pill">{sessions.length} Sessions</span>
+        </div>
+        <div className="card-body p-0">
+          <div className="table-responsive">
+            <table className="table table-hover align-middle mb-0">
+              <thead className="table-light text-secondary small text-uppercase">
+                <tr>
+                  <th className="ps-4">Vehicle</th>
+                  <th>Bay</th>
+                  <th>Energy</th>
+                  <th>Rate</th>
+                  <th>Total</th>
+                  <th>Time</th>
+                  {isAdmin && <th className="pe-4 text-center">Delete</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.length === 0 ? (
+                  <tr>
+                    <td colSpan={isAdmin ? 7 : 6} className="text-center py-4 text-secondary">
+                      No charging sessions recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  sessions.map((session) => (
+                    <tr key={session.id}>
+                      <td className="ps-4 fw-bold">{session.vehicle_number}</td>
+                      <td>{session.bay_name || `Bay #${session.point_id}`}</td>
+                      <td>{Number(session.energy_consumed_kwh).toFixed(2)} kWh</td>
+                      <td>Rs. {Number(session.rate_per_kwh).toFixed(2)}</td>
+                      <td className="text-success fw-bold">Rs. {Number(session.total_amount).toLocaleString()}</td>
+                      <td>{session.start_time ? new Date(session.start_time).toLocaleString() : 'N/A'}</td>
+                      {isAdmin && (
+                        <td className="pe-4 text-center">
+                          <button
+                            className="btn btn-outline-danger btn-sm rounded-pill"
+                            onClick={() => handleDeleteSession(session.id)}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

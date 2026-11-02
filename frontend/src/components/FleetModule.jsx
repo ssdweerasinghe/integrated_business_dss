@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_BASE } from '../config';
 
-function FleetModule({ onDataChanged }) {
+function FleetModule({ currentUser, onDataChanged }) {
+  const isAdmin = currentUser?.role === 'Admin';
   const [vehicles, setVehicles] = useState([]);
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +84,36 @@ function FleetModule({ onDataChanged }) {
     }
   };
 
+  const handleDeleteTrip = async (tripId) => {
+    if (!isAdmin) {
+      alert('Only administrators can delete fleet trip records.');
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_BASE}/api/fleet/trips/${tripId}`);
+      fetchFleetData();
+      if (onDataChanged) onDataChanged();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Unable to delete trip record.');
+    }
+  };
+
+  const handleDeleteVehicle = async (vehicleId) => {
+    if (!isAdmin) {
+      alert('Only administrators can delete fleet vehicles.');
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_BASE}/api/fleet/vehicles/${vehicleId}`);
+      fetchFleetData();
+      if (onDataChanged) onDataChanged();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Unable to delete vehicle.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="text-center py-5">
@@ -141,10 +172,20 @@ function FleetModule({ onDataChanged }) {
                           <td>{v.model}</td>
                           <td>{v.driver_name || 'Unassigned'}</td>
                           <td className="pe-4 text-center">
-                            <span className="badge bg-success-subtle text-success rounded-pill px-2">
-                              {v.status}
-                            </span>
-                          </td>
+                                <div className="d-flex justify-content-center align-items-center gap-2">
+                                  <span className="badge bg-success-subtle text-success rounded-pill px-2">
+                                    {v.status}
+                                  </span>
+                                  {isAdmin && (
+                                    <button
+                                      className="btn btn-outline-danger btn-xs rounded-pill px-2 py-0"
+                                      onClick={() => handleDeleteVehicle(v.id)}
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
                         </tr>
                       ))
                     )}
@@ -298,13 +339,14 @@ function FleetModule({ onDataChanged }) {
                   <th>Vehicle</th>
                   <th>Trip Date</th>
                   <th>Gross Fare (Rs.)</th>
-                  <th className="pe-4">Status</th>
+                  <th>Status</th>
+                  {isAdmin && <th className="pe-4 text-center">Delete</th>}
                 </tr>
               </thead>
               <tbody>
                 {trips.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center py-4 text-secondary">
+                    <td colSpan={isAdmin ? 6 : 5} className="text-center py-4 text-secondary">
                       No trip activity recorded.
                     </td>
                   </tr>
@@ -315,9 +357,19 @@ function FleetModule({ onDataChanged }) {
                       <td><code>{tr.plate_number || `Unit #${tr.vehicle_id}`}</code></td>
                       <td>{new Date(tr.trip_date).toLocaleDateString()}</td>
                       <td className="text-success fw-bold">+Rs. {Number(tr.gross_earnings ?? tr.revenue).toLocaleString()}</td>
-                      <td className="pe-4">
+                      <td>
                         <span className="badge bg-success-subtle text-success rounded-pill px-2">Settled</span>
                       </td>
+                      {isAdmin && (
+                        <td className="pe-4 text-center">
+                          <button
+                            className="btn btn-outline-danger btn-sm rounded-pill"
+                            onClick={() => handleDeleteTrip(tr.id)}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}

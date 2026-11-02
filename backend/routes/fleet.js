@@ -136,7 +136,7 @@ router.post('/expenses', verifyToken, requireRole(['Admin', 'Fleet Manager']), a
   }
 });
 
-router.delete('/trips/:id', verifyToken, requireRole(['Admin', 'Fleet Manager']), async (req, res) => {
+router.delete('/trips/:id', verifyToken, requireRole(['Admin']), async (req, res) => {
   try {
     const tripId = Number(req.params.id);
     if (!tripId) {
@@ -150,7 +150,7 @@ router.delete('/trips/:id', verifyToken, requireRole(['Admin', 'Fleet Manager'])
   }
 });
 
-router.delete('/expenses/:id', verifyToken, requireRole(['Admin', 'Fleet Manager']), async (req, res) => {
+router.delete('/expenses/:id', verifyToken, requireRole(['Admin']), async (req, res) => {
   try {
     const expenseId = Number(req.params.id);
     if (!expenseId) {
@@ -164,7 +164,7 @@ router.delete('/expenses/:id', verifyToken, requireRole(['Admin', 'Fleet Manager
   }
 });
 
-router.delete('/vehicles/:id', verifyToken, requireRole(['Admin', 'Fleet Manager']), async (req, res) => {
+router.delete('/vehicles/:id', verifyToken, requireRole(['Admin']), async (req, res) => {
   try {
     const vehicleId = Number(req.params.id);
     if (!vehicleId) {

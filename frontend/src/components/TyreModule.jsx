@@ -3,7 +3,8 @@ import axios from 'axios';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
-export default function TyreModule({ onDataChanged }) {
+export default function TyreModule({ currentUser, onDataChanged }) {
+  const isAdmin = currentUser?.role === 'Admin';
   const [tyres, setTyres] = useState([]);
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +89,11 @@ export default function TyreModule({ onDataChanged }) {
   };
 
   const handleDeleteSale = async (saleId) => {
+    if (!isAdmin) {
+      alert('Only administrators can delete sales records.');
+      return;
+    }
+
     try {
       await axios.delete(`${API_BASE}/api/tyres/sales/${saleId}`);
       fetchTyres();
@@ -99,6 +105,11 @@ export default function TyreModule({ onDataChanged }) {
   };
 
   const handleDeleteTyre = async (tyreId) => {
+    if (!isAdmin) {
+      alert('Only administrators can delete stock items.');
+      return;
+    }
+
     try {
       await axios.delete(`${API_BASE}/api/tyres/${tyreId}`);
       fetchTyres();
@@ -150,7 +161,9 @@ export default function TyreModule({ onDataChanged }) {
                       </td>
                       <td className="d-flex gap-2">
                         <button className="btn btn-primary btn-sm rounded-pill px-3" onClick={() => initiateSale(t)}>Sell</button>
-                        <button className="btn btn-outline-danger btn-sm rounded-pill px-3" onClick={() => handleDeleteTyre(t.id)}>Delete</button>
+                        {isAdmin && (
+                          <button className="btn btn-outline-danger btn-sm rounded-pill px-3" onClick={() => handleDeleteTyre(t.id)}>Delete</button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -261,7 +274,9 @@ export default function TyreModule({ onDataChanged }) {
                       <td>Rs. {Number(sale.total_amount).toLocaleString()}</td>
                       <td className="text-success fw-semibold">Rs. {Number(sale.gross_profit || 0).toLocaleString()}</td>
                       <td>
-                        <button className="btn btn-outline-danger btn-sm rounded-pill" onClick={() => handleDeleteSale(sale.id)}>Delete</button>
+                        {isAdmin && (
+                          <button className="btn btn-outline-danger btn-sm rounded-pill" onClick={() => handleDeleteSale(sale.id)}>Delete</button>
+                        )}
                       </td>
                     </tr>
                   ))}
