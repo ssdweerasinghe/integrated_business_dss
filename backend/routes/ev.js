@@ -6,35 +6,72 @@ const { verifyToken, requireRole } = require('../middleware/auth');
 router.get('/points', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM charging_points ORDER BY id ASC');
-    res.json({ success: true, data: rows });
+    return res.json({ success: true, data: rows });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 
 router.post('/points', verifyToken, requireRole(['Admin', 'EV System Manager']), async (req, res) => {
   try {
     const { name, charger_type, rate_per_kwh } = req.body;
+
+    if (!name || !charger_type || rate_per_kwh === undefined) {
+      return res.status(400).json({ success: false, message: 'Bay name, charger type, and rate per kWh are required.' });
+    }
+
     await db.query(
       'INSERT INTO charging_points (name, charger_type, rate_per_kwh) VALUES (?, ?, ?)',
-      [name, charger_type, rate_per_kwh]
+      [String(name).trim(), String(charger_type).trim(), Number(rate_per_kwh)]
     );
-    res.json({ success: true, message: 'Bay added' });
+
+    return res.json({ success: true, message: 'Bay added successfully.' });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 
-router.post('/charge', verifyToken, requireRole(['Admin', 'EV System Manager', 'EV Operator']), async (req, res) => {
+const recordSession = async (req, res) => {
   try {
-    const { charging_point_id, vehicle_number, energy_consumed_kwh, rate_per_kwh, total_amount } = req.body;
+    const point_id = Number(req.body.point_id ?? req.body.charging_point_id);
+    const vehicle_number = String(req.body.vehicle_number || 'Unregistered').trim();
+    const energy_consumed_kwh = Number(req.body.energy_consumed_kwh);
+    const rate_per_kwh = Number(req.body.rate_per_kwh);
+    const total_amount = Number(req.body.total_amount ?? energy_consumed_kwh * rate_per_kwh);
+
+    if (!point_id || !Number.isFinite(energy_consumed_kwh) || energy_consumed_kwh <= 0 || !Number.isFinite(rate_per_kwh) || rate_per_kwh <= 0) {
+      return res.status(400).json({ success: false, message: 'Valid point, energy used, and rate are required.' });
+    }
+
+    const [pointRows] = await db.query('SELECT id, name FROM charging_points WHERE id = ?', [point_id]);
+    if (!pointRows.length) {
+      return res.status(404).json({ success: false, message: 'Charging point not found.' });
+    }
+
     await db.query(
-      'INSERT INTO charging_sessions (charging_point_id, vehicle_number, energy_consumed_kwh, rate_per_kwh, total_amount) VALUES (?, ?, ?, ?, ?)',
-      [charging_point_id, vehicle_number, energy_consumed_kwh, rate_per_kwh, total_amount]
+      'INSERT INTO charging_sessions (point_id, vehicle_number, energy_consumed_kwh, rate_per_kwh, total_amount) VALUES (?, ?, ?, ?, ?)',
+      [point_id, vehicle_number || 'Unregistered', energy_consumed_kwh, rate_per_kwh, total_amount]
     );
-    res.json({ success: true, message: 'Session logged' });
+
+    await db.query('UPDATE charging_points SET status = ? WHERE id = ?', ['Charging', point_id]);
+
+    return res.json({ success: true, message: 'Charging session logged successfully.' });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+router.post('/charge', verifyToken, requireRole(['Admin', 'EV System Manager', 'EV Operator']), recordSession);
+router.post('/sessions', verifyToken, requireRole(['Admin', 'EV System Manager', 'EV Operator']), recordSession);
+
+router.get('/sessions', async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      'SELECT s.*, p.name AS bay_name FROM charging_sessions s LEFT JOIN charging_points p ON p.id = s.point_id ORDER BY s.id DESC LIMIT 50'
+    );
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 
