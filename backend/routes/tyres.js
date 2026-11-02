@@ -25,7 +25,7 @@ router.post('/', verifyToken, requireRole(['Admin', 'Shop Manager']), async (req
   }
 });
 
-router.post('/sell', verifyToken, requireRole(['Admin', 'Shop Manager']), async (req, res) => {
+router.post('/sale', verifyToken, requireRole(['Admin', 'Shop Manager']), async (req, res) => {
   try {
     const { tyre_id, quantity, sale_price_per_unit } = req.body;
     const total_amount = quantity * sale_price_per_unit;
