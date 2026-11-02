@@ -17,7 +17,6 @@ import EVModule from './components/EVModule';
 import FleetModule from './components/FleetModule';
 import AdminManager from './components/AdminManager';
 import Login from './components/Login';
-import { API_BASE } from './config';
 
 ChartJS.register(
   CategoryScale,
@@ -29,6 +28,18 @@ ChartJS.register(
   ArcElement
 );
 
+// Define API Base securely (Replaces the broken config import)
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
+// Global Axios Interceptor to automatically attach the JWT token for RBAC routes
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('dss_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -37,6 +48,7 @@ function App() {
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('dss_theme') || 'light');
 
+  // Handle Theme Toggling
   useEffect(() => {
     document.documentElement.setAttribute('data-bs-theme', theme);
     localStorage.setItem('dss_theme', theme);
