@@ -27,12 +27,10 @@ router.post('/', verifyToken, requireRole(['Admin', 'Shop Manager']), async (req
 
 router.post('/sale', verifyToken, requireRole(['Admin', 'Shop Manager']), async (req, res) => {
   try {
-    // Safely capture payload regardless of frontend naming conventions to prevent NaN errors
-    const tyre_id = req.body.tyre_id || req.body.tyreId || req.body.id;
-    const quantity = Number(req.body.quantity || req.body.qty);
-    const sale_price_per_unit = Number(req.body.sale_price_per_unit || req.body.salePrice || req.body.price);
+    const tyre_id = req.body.tyre_id;
+    const quantity = Number(req.body.quantity);
+    const sale_price_per_unit = Number(req.body.sale_price_per_unit);
 
-    // Block invalid calculations before they reach the database
     if (!tyre_id || isNaN(quantity) || isNaN(sale_price_per_unit)) {
       return res.status(400).json({ 
         success: false, 
@@ -53,7 +51,6 @@ router.post('/sale', verifyToken, requireRole(['Admin', 'Shop Manager']), async 
   }
 });
 
-// Admin-only deletion
 router.delete('/:id', verifyToken, requireRole(['Admin']), async (req, res) => {
   try {
     await db.query('DELETE FROM tyres WHERE id = ?', [req.params.id]);
