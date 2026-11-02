@@ -35,6 +35,7 @@ const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').repla
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('dss_token');
   if (token) {
+    config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -51,7 +52,7 @@ function App() {
   const getAccessibleTabs = (role) => {
     switch (role) {
       case 'Admin':
-        return ['dashboard', 'tyres', 'ev', 'fleet', 'admin'];
+        return ['dashboard', 'tyres', 'ev', 'fleet', 'admin', 'inquiries'];
       case 'Owner':
         return ['dashboard', 'tyres', 'ev', 'fleet'];
       case 'Shop Manager':
@@ -272,6 +273,16 @@ function App() {
               </button>
             </li>
           )}
+          {currentUser?.role === 'Admin' && (
+            <li className="nav-item">
+              <button
+                className={`nav-link rounded-pill px-3 py-2 fw-semibold ${activeTab === 'inquiries' ? 'active' : ''}`}
+                onClick={() => setActiveTab('inquiries')}
+              >
+                🧾 Inquiry Management
+              </button>
+            </li>
+          )}
         </ul>
 
         {/* Tab Route Switching */}
@@ -279,6 +290,7 @@ function App() {
         {activeTab === 'ev' && <EVModule currentUser={currentUser} onDataChanged={fetchAnalytics} />}
         {activeTab === 'fleet' && <FleetModule currentUser={currentUser} onDataChanged={fetchAnalytics} />}
         {activeTab === 'admin' && currentUser.role === 'Admin' && <AdminManager onDataChanged={fetchAnalytics} />}
+        {activeTab === 'inquiries' && currentUser.role === 'Admin' && <AdminManager onDataChanged={fetchAnalytics} />}
 
         {activeTab === 'dashboard' && (
           <div>

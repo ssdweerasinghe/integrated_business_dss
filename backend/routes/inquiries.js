@@ -41,4 +41,23 @@ router.get('/', verifyToken, requireRole(['Admin']), async (req, res) => {
   }
 });
 
+router.delete('/:id', verifyToken, requireRole(['Admin']), async (req, res) => {
+  try {
+    const inquiryId = Number(req.params.id);
+    if (!inquiryId) {
+      return res.status(400).json({ success: false, message: 'Inquiry ID is required.' });
+    }
+
+    const [result] = await db.query('DELETE FROM inquiries WHERE id = ?', [inquiryId]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Inquiry not found.' });
+    }
+
+    return res.json({ success: true, message: 'Inquiry deleted successfully.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;
