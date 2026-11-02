@@ -11,6 +11,7 @@ const VALID_ROLES = new Set([
   'Shop Manager',
   'EV Operator',
   'EV System Manager',
+  'EV Manager',
   'Fleet Manager',
   'Fleet Operation Manager',
   'Driver',

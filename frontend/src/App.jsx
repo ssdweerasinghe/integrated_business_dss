@@ -48,6 +48,28 @@ function App() {
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('dss_theme') || 'light');
 
+  const getAccessibleTabs = (role) => {
+    switch (role) {
+      case 'Admin':
+        return ['dashboard', 'tyres', 'ev', 'fleet', 'admin'];
+      case 'Owner':
+        return ['dashboard', 'tyres', 'ev', 'fleet'];
+      case 'Shop Manager':
+        return ['tyres'];
+      case 'EV Operator':
+      case 'EV System Manager':
+      case 'EV Manager':
+        return ['ev'];
+      case 'Fleet Manager':
+      case 'Fleet Operation Manager':
+        return ['fleet'];
+      default:
+        return ['dashboard'];
+    }
+  };
+
+  const accessibleTabs = currentUser ? getAccessibleTabs(currentUser.role) : [];
+
   // Handle Theme Toggling
   useEffect(() => {
     document.documentElement.setAttribute('data-bs-theme', theme);
@@ -93,6 +115,14 @@ function App() {
       fetchAnalytics();
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const allowed = getAccessibleTabs(currentUser.role);
+    if (!allowed.includes(activeTab)) {
+      setActiveTab(allowed[0] || 'dashboard');
+    }
+  }, [currentUser, activeTab]);
 
   const handleLogout = () => {
     localStorage.removeItem('dss_token');
@@ -192,39 +222,47 @@ function App() {
       <div className="container-fluid py-4 px-3 px-md-4">
         {/* Module Selection Navigation */}
         <ul className="nav nav-pills gap-2 mb-4 p-2 bg-white rounded-4 shadow-sm border">
-          <li className="nav-item">
-            <button
-              className={`nav-link rounded-pill px-3 py-2 fw-semibold ${activeTab === 'dashboard' ? 'active' : ''}`}
-              onClick={() => setActiveTab('dashboard')}
-            >
-              📊 Executive Dashboard
-            </button>
-          </li>
-          <li className="nav-item">
-            <button
-              className={`nav-link rounded-pill px-3 py-2 fw-semibold ${activeTab === 'tyres' ? 'active' : ''}`}
-              onClick={() => setActiveTab('tyres')}
-            >
-              🛞 Tyre Inventory & Sales
-            </button>
-          </li>
-          <li className="nav-item">
-            <button
-              className={`nav-link rounded-pill px-3 py-2 fw-semibold ${activeTab === 'ev' ? 'active' : ''}`}
-              onClick={() => setActiveTab('ev')}
-            >
-              ⚡ EV Charging Station
-            </button>
-          </li>
-          <li className="nav-item">
-            <button
-              className={`nav-link rounded-pill px-3 py-2 fw-semibold ${activeTab === 'fleet' ? 'active' : ''}`}
-              onClick={() => setActiveTab('fleet')}
-            >
-              🚗 Fleet Operations
-            </button>
-          </li>
-          {currentUser.role === 'Admin' && (
+          {accessibleTabs.includes('dashboard') && (
+            <li className="nav-item">
+              <button
+                className={`nav-link rounded-pill px-3 py-2 fw-semibold ${activeTab === 'dashboard' ? 'active' : ''}`}
+                onClick={() => setActiveTab('dashboard')}
+              >
+                📊 Executive Dashboard
+              </button>
+            </li>
+          )}
+          {accessibleTabs.includes('tyres') && (
+            <li className="nav-item">
+              <button
+                className={`nav-link rounded-pill px-3 py-2 fw-semibold ${activeTab === 'tyres' ? 'active' : ''}`}
+                onClick={() => setActiveTab('tyres')}
+              >
+                🛞 Tyre Inventory & Sales
+              </button>
+            </li>
+          )}
+          {accessibleTabs.includes('ev') && (
+            <li className="nav-item">
+              <button
+                className={`nav-link rounded-pill px-3 py-2 fw-semibold ${activeTab === 'ev' ? 'active' : ''}`}
+                onClick={() => setActiveTab('ev')}
+              >
+                ⚡ EV Charging Station
+              </button>
+            </li>
+          )}
+          {accessibleTabs.includes('fleet') && (
+            <li className="nav-item">
+              <button
+                className={`nav-link rounded-pill px-3 py-2 fw-semibold ${activeTab === 'fleet' ? 'active' : ''}`}
+                onClick={() => setActiveTab('fleet')}
+              >
+                🚗 Fleet Operations
+              </button>
+            </li>
+          )}
+          {accessibleTabs.includes('admin') && (
             <li className="nav-item">
               <button
                 className={`nav-link rounded-pill px-3 py-2 fw-semibold text-danger ${activeTab === 'admin' ? 'active bg-danger text-white' : ''}`}

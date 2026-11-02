@@ -7,6 +7,7 @@ const tyreRoutes = require('./routes/tyres');
 const evRoutes = require('./routes/ev');
 const fleetRoutes = require('./routes/fleet');
 const analyticsRoutes = require('./routes/analytics');
+const inquiryRoutes = require('./routes/inquiries');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -21,6 +22,7 @@ app.use('/api/tyres', tyreRoutes);
 app.use('/api/ev', evRoutes);
 app.use('/api/fleet', fleetRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/inquiries', inquiryRoutes);
 
 // Health Check Route
 app.get('/', (req, res) => {

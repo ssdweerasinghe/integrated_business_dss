@@ -4,10 +4,10 @@ import { API_BASE } from '../config';
 
 function AdminManager({ onDataChanged }) {
   const [users, setUsers] = useState([]);
+  const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // New User Form State
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,16 +23,31 @@ function AdminManager({ onDataChanged }) {
       if (res.data?.success) {
         setUsers(res.data.data);
       }
-      setLoading(false);
     } catch (err) {
       console.error(err);
       setError('Unable to fetch access control directory.');
+    }
+  };
+
+  const fetchInquiries = async () => {
+    try {
+      const token = localStorage.getItem('dss_token');
+      const res = await axios.get(`${API_BASE}/api/inquiries`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (res.data?.success) {
+        setInquiries(res.data.data);
+      }
+    } catch (err) {
+      console.error('Unable to fetch inquiries', err);
+    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchUsers();
+    fetchInquiries();
   }, []);
 
   const handleRegisterUser = async (e) => {
@@ -85,7 +100,7 @@ function AdminManager({ onDataChanged }) {
           </span>
           <h4 className="fw-bolder m-0 mt-1">Admin Control & User Directory</h4>
         </div>
-        <button className="btn btn-outline-secondary btn-sm px-3 rounded-pill fw-semibold" onClick={fetchUsers}>
+        <button className="btn btn-outline-secondary btn-sm px-3 rounded-pill fw-semibold" onClick={() => { fetchUsers(); fetchInquiries(); }}>
           🔄 Refresh Directory
         </button>
       </div>
@@ -193,7 +208,9 @@ function AdminManager({ onDataChanged }) {
                   <option value="Shop Manager">Shop Manager (Tyres)</option>
                   <option value="EV Operator">EV Operator (Charging)</option>
                   <option value="EV System Manager">EV System Manager</option>
+                  <option value="EV Manager">EV Manager</option>
                   <option value="Fleet Manager">Fleet Manager</option>
+                  <option value="Fleet Operation Manager">Fleet Operation Manager</option>
                   <option value="Driver">Fleet Driver</option>
                   <option value="Owner">Owner (Executive Read-All)</option>
                   <option value="Admin">Administrator (Full Access)</option>
@@ -206,6 +223,30 @@ function AdminManager({ onDataChanged }) {
             </form>
           </div>
         </div>
+      </div>
+
+      <div className="card border-0 shadow-sm rounded-4 p-4">
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h6 className="fw-bold m-0">Operational Inquiries</h6>
+          <span className="badge bg-secondary rounded-pill">{inquiries.length} Requests</span>
+        </div>
+
+        {inquiries.length === 0 ? (
+          <div className="text-secondary small">No inquiry requests received yet.</div>
+        ) : (
+          <div className="d-flex flex-column gap-3">
+            {inquiries.map((item) => (
+              <div key={item.id} className="border rounded-3 p-3 bg-light-subtle">
+                <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                  <strong>{item.title}</strong>
+                  <span className="badge bg-primary-subtle text-primary rounded-pill">{item.submitted_by_role}</span>
+                </div>
+                <div className="small text-secondary mb-2">{new Date(item.created_at).toLocaleString()}</div>
+                <div>{item.content}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

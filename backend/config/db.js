@@ -94,6 +94,13 @@ async function createDefaultSchema() {
       description VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS inquiries (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      submitted_by_role VARCHAR(80) NOT NULL,
+      title VARCHAR(200) NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   ];
 
