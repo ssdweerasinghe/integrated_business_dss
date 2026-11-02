@@ -21,11 +21,36 @@ router.post('/points', verifyToken, requireRole(['Admin', 'EV System Manager']),
     }
 
     await db.query(
-      'INSERT INTO charging_points (name, charger_type, rate_per_kwh) VALUES (?, ?, ?)',
-      [String(name).trim(), String(charger_type).trim(), Number(rate_per_kwh)]
+      'INSERT INTO charging_points (name, charger_type, rate_per_kwh, status) VALUES (?, ?, ?, ?)',
+      [String(name).trim(), String(charger_type).trim(), Number(rate_per_kwh), 'Available']
     );
 
     return res.json({ success: true, message: 'Bay added successfully.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.delete('/points/:id', verifyToken, requireRole(['Admin', 'EV System Manager']), async (req, res) => {
+  try {
+    const pointId = Number(req.params.id);
+    if (!pointId) {
+      return res.status(400).json({ success: false, message: 'Charging point ID is required.' });
+    }
+
+    const connection = await db.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.query('DELETE FROM charging_sessions WHERE point_id = ?', [pointId]);
+      await connection.query('DELETE FROM charging_points WHERE id = ?', [pointId]);
+      await connection.commit();
+      return res.json({ success: true, message: 'Charging point removed.' });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -70,6 +95,20 @@ router.get('/sessions', async (req, res) => {
       'SELECT s.*, p.name AS bay_name FROM charging_sessions s LEFT JOIN charging_points p ON p.id = s.point_id ORDER BY s.id DESC LIMIT 50'
     );
     return res.json({ success: true, data: rows });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.delete('/sessions/:id', verifyToken, requireRole(['Admin', 'EV System Manager', 'EV Operator']), async (req, res) => {
+  try {
+    const sessionId = Number(req.params.id);
+    if (!sessionId) {
+      return res.status(400).json({ success: false, message: 'Session ID is required.' });
+    }
+
+    await db.query('DELETE FROM charging_sessions WHERE id = ?', [sessionId]);
+    return res.json({ success: true, message: 'Charging session deleted.' });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

@@ -12,6 +12,29 @@ router.get('/vehicles', async (req, res) => {
   }
 });
 
+router.post('/vehicles', verifyToken, requireRole(['Admin', 'Fleet Manager']), async (req, res) => {
+  try {
+    const { plate_number, model, driver_name, status } = req.body;
+    if (!plate_number || !model || !driver_name) {
+      return res.status(400).json({ success: false, message: 'Plate number, model, and driver are required.' });
+    }
+
+    const [existing] = await db.query('SELECT id FROM vehicles WHERE plate_number = ? LIMIT 1', [String(plate_number).trim()]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: 'Vehicle with that plate number is already registered.' });
+    }
+
+    await db.query(
+      'INSERT INTO vehicles (plate_number, model, driver_name, status) VALUES (?, ?, ?, ?)',
+      [String(plate_number).trim(), String(model).trim(), String(driver_name).trim(), status || 'Active']
+    );
+
+    return res.json({ success: true, message: 'Vehicle registered successfully.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 router.get('/trips', async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -37,6 +60,33 @@ router.get('/expenses', async (req, res) => {
       LIMIT 50
     `);
     return res.json({ success: true, data: rows });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.get('/admin/records', async (req, res) => {
+  try {
+    const [tripSummary] = await db.query('SELECT COALESCE(SUM(gross_earnings), 0) AS gross_earnings FROM fleet_trips');
+    const [expenseSummary] = await db.query('SELECT COALESCE(SUM(amount), 0) AS total_expenses FROM fleet_expenses');
+    const [vehicleRows] = await db.query('SELECT COUNT(*) AS active_vehicles FROM vehicles WHERE status = "Active"');
+
+    const gross = Number(tripSummary[0]?.gross_earnings || 0);
+    const expenses = Number(expenseSummary[0]?.total_expenses || 0);
+    const activeVehicles = Number(vehicleRows[0]?.active_vehicles || 0);
+    const netYield = gross - expenses;
+    const operatingRatio = gross > 0 ? (expenses / gross) * 100 : 0;
+
+    return res.json({
+      success: true,
+      data: {
+        gross_earnings: gross,
+        total_expenses: expenses,
+        net_yield: netYield,
+        operating_ratio_percent: operatingRatio,
+        active_vehicles: activeVehicles
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -81,6 +131,48 @@ router.post('/expenses', verifyToken, requireRole(['Admin', 'Fleet Manager']), a
     );
 
     return res.json({ success: true, message: 'Expense logged successfully.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.delete('/trips/:id', verifyToken, requireRole(['Admin', 'Fleet Manager']), async (req, res) => {
+  try {
+    const tripId = Number(req.params.id);
+    if (!tripId) {
+      return res.status(400).json({ success: false, message: 'Trip ID is required.' });
+    }
+
+    await db.query('DELETE FROM fleet_trips WHERE id = ?', [tripId]);
+    return res.json({ success: true, message: 'Trip record removed.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.delete('/expenses/:id', verifyToken, requireRole(['Admin', 'Fleet Manager']), async (req, res) => {
+  try {
+    const expenseId = Number(req.params.id);
+    if (!expenseId) {
+      return res.status(400).json({ success: false, message: 'Expense ID is required.' });
+    }
+
+    await db.query('DELETE FROM fleet_expenses WHERE id = ?', [expenseId]);
+    return res.json({ success: true, message: 'Expense record removed.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.delete('/vehicles/:id', verifyToken, requireRole(['Admin', 'Fleet Manager']), async (req, res) => {
+  try {
+    const vehicleId = Number(req.params.id);
+    if (!vehicleId) {
+      return res.status(400).json({ success: false, message: 'Vehicle ID is required.' });
+    }
+
+    await db.query('DELETE FROM vehicles WHERE id = ?', [vehicleId]);
+    return res.json({ success: true, message: 'Vehicle removed.' });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

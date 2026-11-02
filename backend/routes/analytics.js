@@ -10,12 +10,15 @@ router.get('/summary', async (req, res) => {
     const tyreRevenue = Number(tyreRows[0]?.total_revenue || 0);
     const tyreProfit = Number(tyreRows[0]?.total_profit || 0);
 
+    const [lowStockRows] = await db.query('SELECT COUNT(*) AS low_stock_count FROM tyres WHERE stock_quantity < 5');
+    const lowStockCount = Number(lowStockRows[0]?.low_stock_count || 0);
+
     const [evRows] = await db.query(
       'SELECT COALESCE(SUM(total_amount), 0) AS total_revenue, COALESCE(SUM(energy_consumed_kwh), 0) AS total_kwh FROM charging_sessions'
     );
     const evRevenue = Number(evRows[0]?.total_revenue || 0);
     const evKwh = Number(evRows[0]?.total_kwh || 0);
-    const evProfit = evRevenue * 0.35;
+    const evProfit = evRevenue * 0.4;
 
     const [tripRows] = await db.query(
       'SELECT COALESCE(SUM(gross_earnings), 0) AS total_fare FROM fleet_trips'
@@ -54,7 +57,13 @@ router.get('/summary', async (req, res) => {
       });
     }
 
-    if (tyreRevenue > 0) {
+    if (lowStockCount > 0) {
+      decision_insights.push({
+        module: 'Tyre Inventory',
+        type: 'danger',
+        message: `${lowStockCount} tyre SKU(s) are below the stock threshold (<5 units). Re-order urgently.`
+      });
+    } else if (tyreRevenue > 0) {
       decision_insights.push({
         module: 'Tyre Inventory',
         type: 'info',
